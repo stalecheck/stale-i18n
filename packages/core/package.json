@@ -1,0 +1,31 @@
+{
+  "name": "@stale-i18n/core",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config ./tsup.config.ts",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "test": "vitest run --root ../.. --project core",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "oxc-parser": "catalog:",
+    "oxc-resolver": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

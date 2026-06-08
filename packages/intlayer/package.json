@@ -1,0 +1,17 @@
+{
+  "name": "@stale-i18n/intlayer",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

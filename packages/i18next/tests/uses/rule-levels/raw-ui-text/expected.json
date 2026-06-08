@@ -1,0 +1,10 @@
+{
+  "options": {
+    "rawText": {
+      "enabled": true
+    }
+  },
+  "ruleLevels": {
+    "code": "raw-ui-text"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "variants": [
+    {
+      "name": "warning",
+      "options": {
+        "rules": {
+          "missing-translation-key": "warning",
+          "unused-translation-key": "off"
+        }
+      },
+      "result": {
+        "status": "SUCCESS",
+        "diagnostics": [
+          {
+            "code": "missing-translation-key",
+            "severity": "warning"
+          }
+        ]
+      }
+    },
+    {
+      "name": "off",
+      "options": {
+        "rules": {
+          "missing-translation-key": "off",
+          "unused-translation-key": "off"
+        }
+      },
+      "result": {
+        "diagnostics": []
+      }
+    }
+  ]
+}

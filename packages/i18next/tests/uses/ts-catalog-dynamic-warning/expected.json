@@ -1,0 +1,19 @@
+{
+  "options": {
+    "catalogs": "locales/{locale}/{namespace}.ts",
+    "rules": {
+      "catalog-parse-error": "warning",
+      "missing-locale-key": "off",
+      "unused-translation-key": "off"
+    }
+  },
+  "result": {
+    "status": "SUCCESS",
+    "diagnostics": [
+      {
+        "code": "catalog-parse-error",
+        "severity": "warning"
+      }
+    ]
+  }
+}

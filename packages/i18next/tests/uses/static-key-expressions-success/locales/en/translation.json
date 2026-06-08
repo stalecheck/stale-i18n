@@ -1,0 +1,18 @@
+{
+  "account": {
+    "title": "Account",
+    "summary": "Account summary"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel"
+  },
+  "mode": {
+    "create": "Create",
+    "update": "Update"
+  },
+  "state": {
+    "ready": "Ready",
+    "pending": "Pending"
+  }
+}

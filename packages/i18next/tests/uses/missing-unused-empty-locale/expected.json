@@ -1,0 +1,26 @@
+{
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "key": "missing"
+      },
+      {
+        "code": "missing-locale-key",
+        "key": "common.onlyEn",
+        "locale": "es"
+      },
+      {
+        "code": "unused-translation-key",
+        "key": "unused"
+      },
+      {
+        "code": "empty-translation-value",
+        "key": "common.empty"
+      }
+    ]
+  }
+}

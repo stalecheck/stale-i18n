@@ -1,0 +1,30 @@
+packages:
+  - packages/core
+  - packages/i18next
+  - packages/intlayer
+  - packages/paraglide
+  - packages/formatjs
+  - packages/lingui
+  - packages/cli
+
+catalog:
+  oxc-parser: ^0.134.0
+  oxc-resolver: ^11.20.0
+
+savePrefix: ''
+engineStrict: true
+pmOnFail: error
+strictPeerDependencies: true
+minimumReleaseAge: 4320
+minimumReleaseAgeStrict: true
+minimumReleaseAgeIgnoreMissingTime: false
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 43200
+blockExoticSubdeps: true
+ignoreScripts: true
+strictDepBuilds: true
+sideEffectsCache: false
+enablePrePostScripts: false
+
+allowBuilds:
+  esbuild: true

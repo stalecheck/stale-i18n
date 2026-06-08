@@ -1,0 +1,38 @@
+{
+  "name": "@stale-i18n/monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.4.0",
+  "workspaces": [
+    "packages/core",
+    "packages/i18next",
+    "packages/intlayer",
+    "packages/paraglide",
+    "packages/formatjs",
+    "packages/lingui",
+    "packages/cli"
+  ],
+  "scripts": {
+    "build": "pnpm -r build",
+    "format": "pnpm -r format",
+    "format:check": "pnpm -r format:check",
+    "lint": "pnpm -r lint",
+    "lint:fix": "pnpm -r lint:fix",
+    "test": "vitest run --coverage",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.4",
+    "@vitest/coverage-v8": "4.1.7",
+    "oxfmt": "0.53.0",
+    "oxlint": "1.68.0",
+    "oxlint-tsgolint": "0.23.0",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.7"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "options": {
+    "rawText": {
+      "enabled": true,
+      "minLength": 3,
+      "ignore": [
+        {
+          "regexp": "^Save$"
+        }
+      ],
+      "attributes": ["title"],
+      "components": {
+        "Input": ["label", "helperText"]
+      }
+    }
+  },
+  "result": {
+    "diagnostics": [
+      {
+        "code": "raw-ui-text",
+        "key": "Search"
+      }
+    ]
+  }
+}

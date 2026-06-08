@@ -1,0 +1,12 @@
+{
+  "result": {
+    "status": "FAIL",
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "pay"
+      }
+    ]
+  }
+}

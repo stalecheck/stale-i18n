@@ -1,0 +1,32 @@
+{
+  "options": {
+    "catalogs": ["invalid-catalog/en/common.json", "invalid-catalog/es/common.json"],
+    "rules": {
+      "catalog-parse-error": "warning",
+      "catalog-file-not-found": "warning",
+      "unresolved-dynamic-key": "warning"
+    }
+  },
+  "result": {
+    "status": "SUCCESS",
+    "diagnostics": [
+      {
+        "code": "catalog-parse-error",
+        "severity": "warning"
+      },
+      {
+        "code": "catalog-file-not-found",
+        "severity": "warning"
+      },
+      {
+        "code": "unresolved-dynamic-key",
+        "severity": "warning"
+      }
+    ],
+    "absentDiagnostics": [
+      {
+        "key": "local"
+      }
+    ]
+  }
+}

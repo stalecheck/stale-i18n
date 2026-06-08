@@ -1,0 +1,18 @@
+{
+  "account": {
+    "title": "Cuenta",
+    "summary": "Resumen de cuenta"
+  },
+  "actions": {
+    "save": "Guardar",
+    "cancel": "Cancelar"
+  },
+  "mode": {
+    "create": "Crear",
+    "update": "Actualizar"
+  },
+  "state": {
+    "ready": "Listo",
+    "pending": "Pendiente"
+  }
+}
