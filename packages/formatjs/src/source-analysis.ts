@@ -1,17 +1,28 @@
-import { locationFromIndex, type SourceLocation, type SourceUsage } from "@stale-i18n/core";
-import { arrayOf, bindingNames, identifierName, jsxName, stringLiteral, walk } from "./ast.js";
+import {
+  arrayOf,
+  bindingNames,
+  collectStaticStringBinding,
+  collectStaticStringEnum,
+  createStaticStringContext,
+  identifierName,
+  jsxName,
+  locationFromIndex,
+  resolveStaticStrings,
+  stringLiteral,
+  walk,
+  type SourceLocation,
+  type SourceUsage,
+  type StaticStringContext
+} from "@stale-i18n/core";
 import type { AnyNode } from "./types.js";
 
-type StaticValues = Map<string, string[]>;
 type DescriptorValues = Map<string, string[]>;
-type EnumValues = Map<string, Map<string, string>>;
 
 export function analyzeProgram(program: AnyNode, source: string, filePath: string): SourceUsage[] {
   const useIntlNames = new Set<string>();
   const formattedMessageNames = new Set<string>();
   const intlBindings = new Set<string>();
-  const staticValues: StaticValues = new Map();
-  const enumValues: EnumValues = new Map();
+  const staticStrings = createStaticStringContext();
   const descriptorValues: DescriptorValues = new Map();
   const usages: SourceUsage[] = [];
 
@@ -46,12 +57,12 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
 
       if (node.type === "VariableDeclarator") {
         collectIntlBinding(node, useIntlNames, intlBindings);
-        collectStaticBinding(node, staticValues, enumValues);
-        collectDescriptorBinding(node, staticValues, enumValues, descriptorValues);
+        collectStaticStringBinding(node, staticStrings);
+        collectDescriptorBinding(node, staticStrings, descriptorValues);
       }
 
       if (node.type === "TSEnumDeclaration") {
-        collectEnumValues(node, enumValues);
+        collectStaticStringEnum(node, staticStrings);
       }
 
       if (node.type === "CallExpression") {
@@ -62,14 +73,7 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
           !state.hidden.has(member.object)
         ) {
           usages.push(
-            ...usagesFromFormatMessage(
-              node,
-              source,
-              filePath,
-              staticValues,
-              enumValues,
-              descriptorValues
-            )
+            ...usagesFromFormatMessage(node, source, filePath, staticStrings, descriptorValues)
           );
         }
       }
@@ -78,9 +82,7 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
         const opening = node.openingElement as AnyNode | undefined;
         const name = jsxName(opening?.name as AnyNode | undefined);
         if (name && formattedMessageNames.has(name)) {
-          usages.push(
-            ...usagesFromFormattedMessage(node, source, filePath, staticValues, enumValues)
-          );
+          usages.push(...usagesFromFormattedMessage(node, source, filePath, staticStrings));
         }
       }
 
@@ -107,33 +109,9 @@ function collectIntlBinding(
   }
 }
 
-function collectStaticBinding(
-  declarator: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues
-) {
-  const name = identifierName(declarator.id);
-  if (!name) {
-    return;
-  }
-
-  const values = resolveStringExpression(
-    declarator.init as AnyNode | undefined,
-    staticValues,
-    enumValues
-  );
-  if (values === undefined) {
-    staticValues.delete(name);
-    return;
-  }
-
-  staticValues.set(name, values);
-}
-
 function collectDescriptorBinding(
   declarator: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues,
+  staticStrings: StaticStringContext,
   descriptorValues: DescriptorValues
 ) {
   const name = identifierName(declarator.id);
@@ -141,11 +119,7 @@ function collectDescriptorBinding(
     return;
   }
 
-  const values = idValuesFromDescriptor(
-    declarator.init as AnyNode | undefined,
-    staticValues,
-    enumValues
-  );
+  const values = idValuesFromDescriptor(declarator.init as AnyNode | undefined, staticStrings);
   if (values === undefined) {
     descriptorValues.delete(name);
     return;
@@ -158,14 +132,13 @@ function usagesFromFormatMessage(
   call: AnyNode,
   source: string,
   filePath: string,
-  staticValues: StaticValues,
-  enumValues: EnumValues,
+  staticStrings: StaticStringContext,
   descriptorValues: DescriptorValues
 ): SourceUsage[] {
   const descriptor = arrayOf<AnyNode>(call.arguments)[0];
   const location = nodeLocation(call, source);
   const ids =
-    idValuesFromDescriptor(descriptor, staticValues, enumValues) ??
+    idValuesFromDescriptor(descriptor, staticStrings) ??
     descriptorValues.get(identifierName(descriptor) ?? "");
 
   if (ids === undefined) {
@@ -179,8 +152,7 @@ function usagesFromFormattedMessage(
   element: AnyNode,
   source: string,
   filePath: string,
-  staticValues: StaticValues,
-  enumValues: EnumValues
+  staticStrings: StaticStringContext
 ): SourceUsage[] {
   const attribute = jsxAttributeNode(element, "id");
   const location = nodeLocation(element, source);
@@ -188,7 +160,7 @@ function usagesFromFormattedMessage(
     return [];
   }
 
-  const ids = resolveJsxAttributeValues(attribute, staticValues, enumValues);
+  const ids = resolveJsxAttributeValues(attribute, staticStrings);
   if (ids === undefined) {
     return [unresolvedUsage(element, attribute, source, filePath, location, "jsx-component")];
   }
@@ -198,8 +170,7 @@ function usagesFromFormattedMessage(
 
 function idValuesFromDescriptor(
   node: AnyNode | undefined,
-  staticValues: StaticValues,
-  enumValues: EnumValues
+  staticStrings: StaticStringContext
 ): string[] | undefined {
   if (!node || node.type !== "ObjectExpression") {
     return undefined;
@@ -208,54 +179,7 @@ function idValuesFromDescriptor(
   const idProperty = arrayOf<AnyNode>(node.properties).find(
     (property) => identifierName(property.key) === "id"
   );
-  return resolveStringExpression(
-    idProperty?.value as AnyNode | undefined,
-    staticValues,
-    enumValues
-  );
-}
-
-function resolveStringExpression(
-  node: AnyNode | undefined,
-  staticValues: StaticValues,
-  enumValues: EnumValues
-): string[] | undefined {
-  if (!node) {
-    return undefined;
-  }
-
-  const literal = stringLiteral(node);
-  if (literal !== undefined) {
-    return [literal];
-  }
-
-  if (node.type === "Identifier") {
-    return staticValues.get(identifierName(node) ?? "");
-  }
-
-  if (node.type === "ConditionalExpression") {
-    const consequent = resolveStringExpression(
-      node.consequent as AnyNode | undefined,
-      staticValues,
-      enumValues
-    );
-    const alternate = resolveStringExpression(
-      node.alternate as AnyNode | undefined,
-      staticValues,
-      enumValues
-    );
-    return consequent && alternate ? unique([...consequent, ...alternate]) : undefined;
-  }
-
-  if (node.type === "TemplateLiteral") {
-    return resolveTemplateValues(node, staticValues, enumValues);
-  }
-
-  if (node.type === "MemberExpression") {
-    return resolveMemberExpressionValues(node, enumValues);
-  }
-
-  return undefined;
+  return resolveStaticStrings(idProperty?.value as AnyNode | undefined, staticStrings);
 }
 
 function jsxAttributeNode(element: AnyNode, name: string): AnyNode | undefined {
@@ -267,8 +191,7 @@ function jsxAttributeNode(element: AnyNode, name: string): AnyNode | undefined {
 
 function resolveJsxAttributeValues(
   attribute: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues
+  staticStrings: StaticStringContext
 ): string[] | undefined {
   const value = attribute.value as AnyNode | undefined;
   if (!value) {
@@ -276,88 +199,10 @@ function resolveJsxAttributeValues(
   }
 
   if (value.type === "JSXExpressionContainer") {
-    return resolveStringExpression(
-      value.expression as AnyNode | undefined,
-      staticValues,
-      enumValues
-    );
+    return resolveStaticStrings(value.expression as AnyNode | undefined, staticStrings);
   }
 
-  return resolveStringExpression(value, staticValues, enumValues);
-}
-
-function collectEnumValues(node: AnyNode, enumValues: EnumValues) {
-  const enumName = identifierName(node.id);
-  if (!enumName) {
-    return;
-  }
-
-  const body = node.body as AnyNode | undefined;
-  const members = new Map<string, string>();
-  for (const member of arrayOf<AnyNode>(body?.members ?? node.members)) {
-    const memberName = identifierName(member.id) ?? stringLiteral(member.id);
-    const value = stringLiteral(member.initializer) ?? stringLiteral(member.init);
-    if (memberName && value !== undefined) {
-      members.set(memberName, value);
-    }
-  }
-
-  if (members.size > 0) {
-    enumValues.set(enumName, members);
-  }
-}
-
-function resolveTemplateValues(
-  node: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues
-): string[] | undefined {
-  const quasis = arrayOf<AnyNode>(node.quasis);
-  const expressions = arrayOf<AnyNode>(node.expressions);
-  let values = [templateQuasiValue(quasis[0]) ?? ""];
-
-  for (const [index, expression] of expressions.entries()) {
-    const expressionValues = resolveStringExpression(expression, staticValues, enumValues);
-    const nextQuasi = templateQuasiValue(quasis[index + 1]) ?? "";
-    if (expressionValues === undefined) {
-      return undefined;
-    }
-
-    values = values.flatMap((value) =>
-      expressionValues.map((expressionValue) => `${value}${expressionValue}${nextQuasi}`)
-    );
-  }
-
-  return unique(values);
-}
-
-function templateQuasiValue(node: AnyNode | undefined): string | undefined {
-  const value = node?.value as { cooked?: unknown; raw?: unknown } | undefined;
-  if (typeof value?.cooked === "string") {
-    return value.cooked;
-  }
-  if (typeof value?.raw === "string") {
-    return value.raw;
-  }
-  return undefined;
-}
-
-function resolveMemberExpressionValues(
-  node: AnyNode,
-  enumValues: EnumValues
-): string[] | undefined {
-  const object = identifierName(node.object);
-  const property = identifierName(node.property) ?? stringLiteral(node.property);
-  if (!object || !property) {
-    return undefined;
-  }
-
-  const value = enumValues.get(object)?.get(property);
-  return value === undefined ? undefined : [value];
-}
-
-function unique(values: string[]) {
-  return [...new Set(values)];
+  return resolveStaticStrings(value, staticStrings);
 }
 
 function memberExpressionName(

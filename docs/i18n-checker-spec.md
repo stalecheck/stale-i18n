@@ -581,12 +581,16 @@ core.
 API publica inicial de `@stale-i18n/core`:
 
 - Tipos: `BaseCheckOptions`, `CheckResult`, `CheckStatus`,
-  `CreateDiagnosticInput`, `Diagnostic`, `MessageId`, `ParseSourceResult`,
-  `RuleCode`, `RuleDefinition`, `RuleLevel`, `RuleOverrides`,
-  `SourceLocation`, `SourceUsage`, `TranslationChecker`.
+  `CreateDiagnosticInput`, `Diagnostic`, `AnyNode`, `MessageId`,
+  `ParseSourceResult`, `RuleCode`, `RuleDefinition`, `RuleLevel`,
+  `RuleOverrides`, `SourceLocation`, `SourceUsage`, `StaticStringContext`,
+  `TranslationChecker`.
 - Constantes: `RULE_DEFINITIONS`.
-- Helpers: `createDiagnostic`, `createResult`, `getRuleLevel`,
-  `locationFromIndex`, `parseSource`.
+- Helpers: `arrayOf`, `bindingNames`, `collectStaticStringBinding`,
+  `collectStaticStringEnum`, `createDiagnostic`, `createResult`,
+  `createStaticStringContext`, `discoverSourceFiles`, `getRuleLevel`,
+  `identifierName`, `isNode`, `jsxName`, `literalValue`, `locationFromIndex`,
+  `parseSource`, `resolveStaticStrings`, `stringLiteral`, `walk`.
 
 Nada mas debe exportarse desde core sin actualizar esta lista en la spec.
 
@@ -1028,6 +1032,10 @@ Debe tener tests para:
 - Representacion `SourceUsage` resolved/unresolved.
 - Normalizacion de diagnosticos.
 - Parse errors convertidos en diagnosticos.
+- AST utils compartidos usados por paquetes de libreria.
+- Evaluacion estatica conservadora de strings: literales, arrays, ternarios,
+  templates enumerables, constantes locales y enums string.
+- Discovery de ficheros fuente con target fichero/directorio e ignores.
 
 ### i18next
 

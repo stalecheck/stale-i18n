@@ -1,16 +1,24 @@
 import {
+  arrayOf,
+  bindingNames,
+  collectStaticStringBinding,
+  collectStaticStringEnum,
+  createStaticStringContext,
+  identifierName,
+  jsxName,
+  literalValue,
   locationFromIndex,
+  resolveStaticStrings,
+  stringLiteral,
+  walk,
   type Diagnostic,
   type SourceLocation,
-  type SourceUsage
+  type SourceUsage,
+  type StaticStringContext
 } from "@stale-i18n/core";
-import { arrayOf, bindingNames, identifierName, literalValue, stringLiteral, walk } from "./ast.js";
-import { jsxAttributes, jsxName } from "./jsx.js";
+import { jsxAttributes } from "./jsx.js";
 import { rawTextDiagnostic } from "./raw-text.js";
 import type { AnyNode, I18nextCheckOptions, TBinding } from "./types.js";
-
-type StaticValues = Map<string, string[]>;
-type EnumValues = Map<string, Map<string, string>>;
 
 export function analyzeProgram(
   program: AnyNode,
@@ -22,8 +30,7 @@ export function analyzeProgram(
   const transNames = new Set<string>();
   const i18nextObjectNames = new Set<string>();
   const tBindings = new Map<string, TBinding>();
-  const staticValues: StaticValues = new Map();
-  const enumValues: EnumValues = new Map();
+  const staticStrings = createStaticStringContext();
   const usages: SourceUsage[] = [];
   const diagnostics: Diagnostic[] = [];
 
@@ -73,11 +80,11 @@ export function analyzeProgram(
 
       if (node.type === "VariableDeclarator") {
         collectTBinding(node, useTranslationNames, tBindings, options);
-        collectStaticBinding(node, staticValues, enumValues);
+        collectStaticStringBinding(node, staticStrings);
       }
 
       if (node.type === "TSEnumDeclaration") {
-        collectEnumValues(node, enumValues);
+        collectStaticStringEnum(node, staticStrings);
       }
 
       if (node.type === "CallExpression") {
@@ -90,8 +97,7 @@ export function analyzeProgram(
               source,
               filePath,
               options,
-              staticValues,
-              enumValues
+              staticStrings
             )
           );
         }
@@ -108,8 +114,7 @@ export function analyzeProgram(
               source,
               filePath,
               options,
-              staticValues,
-              enumValues
+              staticStrings
             )
           );
         }
@@ -119,9 +124,7 @@ export function analyzeProgram(
         const opening = node.openingElement as AnyNode | undefined;
         const name = jsxName(opening?.name as AnyNode | undefined);
         if (name && transNames.has(name)) {
-          usages.push(
-            ...usagesFromTrans(node, source, filePath, options, staticValues, enumValues)
-          );
+          usages.push(...usagesFromTrans(node, source, filePath, options, staticStrings));
         }
       }
 
@@ -197,8 +200,7 @@ function usageFromTCall(
   source: string,
   filePath: string,
   options: I18nextCheckOptions,
-  staticValues: StaticValues,
-  enumValues: EnumValues
+  staticStrings: StaticStringContext
 ): SourceUsage[] {
   const firstArg = arrayOf<AnyNode>(call.arguments)[0];
   const secondArg = arrayOf<AnyNode>(call.arguments)[1];
@@ -215,7 +217,7 @@ function usageFromTCall(
     ];
   }
 
-  const keys = resolveKeyExpression(firstArg, staticValues, enumValues);
+  const keys = resolveStaticStrings(firstArg, staticStrings);
 
   if (keys === undefined) {
     return [
@@ -261,8 +263,7 @@ function usagesFromTrans(
   source: string,
   filePath: string,
   options: I18nextCheckOptions,
-  staticValues: StaticValues,
-  enumValues: EnumValues
+  staticStrings: StaticStringContext
 ): SourceUsage[] {
   const attrs = jsxAttributes(element);
   const keyAttribute = jsxAttributeNode(element, "i18nKey");
@@ -270,7 +271,7 @@ function usagesFromTrans(
     return [];
   }
 
-  const keys = resolveJsxAttributeValues(keyAttribute, staticValues, enumValues);
+  const keys = resolveJsxAttributeValues(keyAttribute, staticStrings);
   if (keys === undefined) {
     return [
       {
@@ -345,162 +346,6 @@ function nodeLocation(node: AnyNode, source: string): SourceLocation {
   return locationFromIndex(source, node.start ?? 0);
 }
 
-function collectStaticBinding(
-  declarator: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues
-) {
-  const name = identifierName(declarator.id);
-  if (!name) {
-    return;
-  }
-
-  const values = resolveKeyExpression(
-    declarator.init as AnyNode | undefined,
-    staticValues,
-    enumValues
-  );
-  if (values === undefined) {
-    staticValues.delete(name);
-    return;
-  }
-
-  staticValues.set(name, values);
-}
-
-function collectEnumValues(node: AnyNode, enumValues: EnumValues) {
-  const enumName = identifierName(node.id);
-  if (!enumName) {
-    return;
-  }
-
-  const members = new Map<string, string>();
-  const body = node.body as AnyNode | undefined;
-  for (const member of arrayOf<AnyNode>(body?.members ?? node.members)) {
-    const memberName = identifierName(member.id) ?? stringLiteral(member.id);
-    const value = stringLiteral(member.initializer) ?? stringLiteral(member.init);
-    if (memberName && value !== undefined) {
-      members.set(memberName, value);
-    }
-  }
-
-  if (members.size > 0) {
-    enumValues.set(enumName, members);
-  }
-}
-
-function resolveKeyExpression(
-  node: AnyNode | undefined,
-  staticValues: StaticValues,
-  enumValues: EnumValues
-): string[] | undefined {
-  if (!node) {
-    return undefined;
-  }
-
-  const literal = stringLiteral(node);
-  if (literal !== undefined) {
-    return [literal];
-  }
-
-  if (node.type === "Identifier") {
-    return staticValues.get(identifierName(node) ?? "");
-  }
-
-  if (node.type === "ArrayExpression") {
-    return resolveArrayValues(node, staticValues, enumValues);
-  }
-
-  if (node.type === "ConditionalExpression") {
-    const consequent = resolveKeyExpression(
-      node.consequent as AnyNode | undefined,
-      staticValues,
-      enumValues
-    );
-    const alternate = resolveKeyExpression(
-      node.alternate as AnyNode | undefined,
-      staticValues,
-      enumValues
-    );
-    return consequent && alternate ? unique([...consequent, ...alternate]) : undefined;
-  }
-
-  if (node.type === "TemplateLiteral") {
-    return resolveTemplateValues(node, staticValues, enumValues);
-  }
-
-  if (node.type === "MemberExpression") {
-    return resolveMemberExpressionValues(node, enumValues);
-  }
-
-  return undefined;
-}
-
-function resolveArrayValues(
-  node: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues
-): string[] | undefined {
-  const values: string[] = [];
-  for (const element of arrayOf<AnyNode>(node.elements)) {
-    const elementValues = resolveKeyExpression(element, staticValues, enumValues);
-    if (elementValues === undefined) {
-      return undefined;
-    }
-    values.push(...elementValues);
-  }
-  return unique(values);
-}
-
-function resolveTemplateValues(
-  node: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues
-): string[] | undefined {
-  const quasis = arrayOf<AnyNode>(node.quasis);
-  const expressions = arrayOf<AnyNode>(node.expressions);
-  let values = [templateQuasiValue(quasis[0]) ?? ""];
-
-  for (const [index, expression] of expressions.entries()) {
-    const expressionValues = resolveKeyExpression(expression, staticValues, enumValues);
-    const nextQuasi = templateQuasiValue(quasis[index + 1]) ?? "";
-    if (expressionValues === undefined) {
-      return undefined;
-    }
-
-    values = values.flatMap((value) =>
-      expressionValues.map((expressionValue) => `${value}${expressionValue}${nextQuasi}`)
-    );
-  }
-
-  return unique(values);
-}
-
-function templateQuasiValue(node: AnyNode | undefined): string | undefined {
-  const value = node?.value as { cooked?: unknown; raw?: unknown } | undefined;
-  if (typeof value?.cooked === "string") {
-    return value.cooked;
-  }
-  if (typeof value?.raw === "string") {
-    return value.raw;
-  }
-  return undefined;
-}
-
-function resolveMemberExpressionValues(
-  node: AnyNode,
-  enumValues: EnumValues
-): string[] | undefined {
-  const object = identifierName(node.object);
-  const property = identifierName(node.property) ?? stringLiteral(node.property);
-  if (!object || !property) {
-    return undefined;
-  }
-
-  const value = enumValues.get(object)?.get(property);
-  return value === undefined ? undefined : [value];
-}
-
 function jsxAttributeNode(element: AnyNode, name: string): AnyNode | undefined {
   const opening = element.openingElement as AnyNode | undefined;
   return arrayOf<AnyNode>(opening?.attributes).find(
@@ -510,8 +355,7 @@ function jsxAttributeNode(element: AnyNode, name: string): AnyNode | undefined {
 
 function resolveJsxAttributeValues(
   attribute: AnyNode,
-  staticValues: StaticValues,
-  enumValues: EnumValues
+  staticStrings: StaticStringContext
 ): string[] | undefined {
   const value = attribute.value as AnyNode | undefined;
   if (!value) {
@@ -519,12 +363,8 @@ function resolveJsxAttributeValues(
   }
 
   if (value.type === "JSXExpressionContainer") {
-    return resolveKeyExpression(value.expression as AnyNode | undefined, staticValues, enumValues);
+    return resolveStaticStrings(value.expression as AnyNode | undefined, staticStrings);
   }
 
-  return resolveKeyExpression(value, staticValues, enumValues);
-}
-
-function unique(values: string[]) {
-  return [...new Set(values)];
+  return resolveStaticStrings(value, staticStrings);
 }

@@ -1,4 +1,5 @@
 import type { BaseCheckOptions, Diagnostic } from "@stale-i18n/core";
+export type { AnyNode } from "@stale-i18n/core";
 
 export type RawTextOptions = {
   enabled?: boolean;
@@ -15,12 +16,6 @@ export type I18nextCheckOptions = BaseCheckOptions & {
   keySeparator?: string | false;
   namespaceSeparator?: string | false;
   rawText?: RawTextOptions;
-};
-
-export type AnyNode = Record<string, unknown> & {
-  type?: string;
-  start?: number;
-  end?: number;
 };
 
 export type TBinding = {

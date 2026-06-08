@@ -1,5 +1,5 @@
-import { createDiagnostic, locationFromIndex, type Diagnostic } from "@stale-i18n/core";
-import { jsxAttributeStringValue, jsxName } from "./jsx.js";
+import { createDiagnostic, jsxName, locationFromIndex, type Diagnostic } from "@stale-i18n/core";
+import { jsxAttributeStringValue } from "./jsx.js";
 import type { AnyNode, I18nextCheckOptions, RawTextOptions } from "./types.js";
 
 export function rawTextDiagnostic(

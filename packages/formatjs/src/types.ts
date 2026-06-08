@@ -1,13 +1,8 @@
 import type { BaseCheckOptions, Diagnostic } from "@stale-i18n/core";
+export type { AnyNode } from "@stale-i18n/core";
 
 export type FormatjsCheckOptions = BaseCheckOptions & {
   catalogs: string | string[];
-};
-
-export type AnyNode = Record<string, unknown> & {
-  type?: string;
-  start?: number;
-  end?: number;
 };
 
 export type CatalogEntry = {

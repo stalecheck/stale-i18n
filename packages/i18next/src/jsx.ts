@@ -1,5 +1,4 @@
-import { stringLiteral } from "./ast.js";
-import type { AnyNode } from "./types.js";
+import { arrayOf, jsxName, stringLiteral, type AnyNode } from "@stale-i18n/core";
 
 export function jsxAttributes(element: AnyNode): Map<string, string> {
   const attrs = new Map<string, string>();
@@ -22,15 +21,4 @@ export function jsxAttributeStringValue(attribute: AnyNode): string | undefined 
     return typeof value.value === "string" ? value.value : undefined;
   if (value.type === "JSXExpressionContainer") return stringLiteral(value.expression as AnyNode);
   return undefined;
-}
-
-export function jsxName(node: AnyNode | undefined): string | undefined {
-  if (!node) return undefined;
-  if (node.type === "JSXIdentifier" && typeof node.name === "string") return node.name;
-  if (node.type === "Identifier" && typeof node.name === "string") return node.name;
-  return undefined;
-}
-
-function arrayOf<T>(value: unknown): T[] {
-  return Array.isArray(value) ? (value as T[]) : [];
 }

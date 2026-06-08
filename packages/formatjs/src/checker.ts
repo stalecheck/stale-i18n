@@ -2,6 +2,7 @@ import {
   createDiagnostic,
   createResult,
   parseSource,
+  discoverSourceFiles,
   type CheckResult,
   type Diagnostic,
   type SourceUsage,
@@ -10,7 +11,6 @@ import {
 import { readFileSync } from "node:fs";
 import { readCatalogs } from "./catalogs.js";
 import { compareUsages } from "./comparison.js";
-import { discoverSourceFiles } from "./files.js";
 import { analyzeProgram } from "./source-analysis.js";
 import type { AnyNode, FormatjsCheckOptions } from "./types.js";
 

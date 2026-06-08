@@ -1,7 +1,13 @@
-import { createDiagnostic, parseSource } from "@stale-i18n/core";
+import {
+  arrayOf,
+  createDiagnostic,
+  identifierName,
+  literalValue,
+  parseSource,
+  stringLiteral
+} from "@stale-i18n/core";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { arrayOf, identifierName, literalValue, stringLiteral } from "./ast.js";
 import type { AnyNode, CatalogEntry, CatalogReadResult, I18nextCheckOptions } from "./types.js";
 
 export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {

@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 
-export function discoverSourceFiles(target: string, ignore: string[]): string[] {
+export function discoverSourceFiles(target: string, ignore: string[] = []): string[] {
   const absoluteTarget = path.resolve(target);
   if (!existsSync(absoluteTarget)) {
     return [];

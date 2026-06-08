@@ -18,6 +18,12 @@ export type SourceLocation = {
   column: number;
 };
 
+export type AnyNode = Record<string, unknown> & {
+  type?: string;
+  start?: number;
+  end?: number;
+};
+
 export type Diagnostic = {
   code: RuleCode;
   severity: Exclude<RuleLevel, "off">;

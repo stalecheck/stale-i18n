@@ -1,13 +1,24 @@
 import { describe, expect, it } from "vitest";
 import {
+  arrayOf,
+  collectStaticStringBinding,
+  collectStaticStringEnum,
   createDiagnostic,
   createResult,
+  createStaticStringContext,
+  discoverSourceFiles,
   getRuleLevel,
+  identifierName,
   locationFromIndex,
   parseSource,
-  RULE_DEFINITIONS
+  resolveStaticStrings,
+  RULE_DEFINITIONS,
+  walk
 } from "@stale-i18n/core";
-import type { SourceUsage } from "@stale-i18n/core";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import type { AnyNode, SourceUsage } from "@stale-i18n/core";
 
 describe("core result helpers", () => {
   it("marks results with errors as FAIL and warning-only results as SUCCESS", () => {
@@ -86,6 +97,92 @@ describe("core result helpers", () => {
         severity: "error",
         filePath: "src/App.tsx"
       })
+    ]);
+  });
+
+  it("walks AST nodes and exposes shared node helpers", () => {
+    const parsed = parseSource("src/app.ts", "const title = 'Title';");
+    const names: string[] = [];
+
+    walk(parsed.program, {
+      enter(node) {
+        const name = identifierName(node);
+        if (name) {
+          names.push(name);
+        }
+        return undefined;
+      }
+    });
+
+    expect(names).toContain("title");
+    expect(arrayOf<unknown>(undefined)).toEqual([]);
+  });
+
+  it("resolves static string literals, arrays, constants, templates, ternaries, and enums", () => {
+    const source = `
+      enum MessageId { Title = "title" }
+      const state = Math.random() > 0.5 ? "ready" : "pending";
+      const direct = "save";
+      const template = \`status.\${state}\`;
+      const list = ["fallback", direct];
+    `;
+    const parsed = parseSource("src/app.ts", source);
+    const context = createStaticStringContext();
+    const declarations = new Map<string, AnyNode>();
+    let enumReference: AnyNode | undefined;
+
+    walk(parsed.program, {
+      enter(node) {
+        if (node.type === "TSEnumDeclaration") {
+          collectStaticStringEnum(node, context);
+          enumReference = {
+            type: "MemberExpression",
+            object: node.id,
+            property: { type: "Identifier", name: "Title" }
+          };
+        }
+        if (node.type === "VariableDeclarator") {
+          collectStaticStringBinding(node, context);
+          const name = identifierName(node.id);
+          if (name) {
+            declarations.set(name, node);
+          }
+        }
+        return undefined;
+      }
+    });
+
+    expect(resolveStaticStrings(declarations.get("direct")?.init as AnyNode, context)).toEqual([
+      "save"
+    ]);
+    expect(resolveStaticStrings(declarations.get("template")?.init as AnyNode, context)).toEqual([
+      "status.ready",
+      "status.pending"
+    ]);
+    expect(resolveStaticStrings(declarations.get("list")?.init as AnyNode, context)).toEqual([
+      "fallback",
+      "save"
+    ]);
+    expect(resolveStaticStrings(enumReference, context)).toEqual(["title"]);
+  });
+
+  it("discovers source files from directories, files, and ignore patterns", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-files-"));
+    mkdirSync(path.join(dir, "src"));
+    mkdirSync(path.join(dir, "src", "nested"));
+    writeFileSync(path.join(dir, "src", "app.tsx"), "export const app = 1;");
+    writeFileSync(path.join(dir, "src", "nested", "helper.ts"), "export const helper = 1;");
+    writeFileSync(path.join(dir, "src", "readme.md"), "# docs");
+
+    expect(discoverSourceFiles(path.join(dir, "src"))).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "nested", "helper.ts")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src", "app.tsx"))).toEqual([
+      path.join(dir, "src", "app.tsx")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src"), ["nested"])).toEqual([
+      path.join(dir, "src", "app.tsx")
     ]);
   });
 });
