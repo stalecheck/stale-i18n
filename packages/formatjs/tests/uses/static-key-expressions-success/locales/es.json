@@ -1,0 +1,10 @@
+{
+  "dashboard.title": "Panel",
+  "dashboard.save": "Guardar",
+  "dashboard.create": "Crear",
+  "dashboard.update": "Actualizar",
+  "dashboard.ready": "Listo",
+  "dashboard.pending": "Pendiente",
+  "dashboard.ctaCreate": "Crear ahora",
+  "dashboard.ctaUpdate": "Actualizar ahora"
+}

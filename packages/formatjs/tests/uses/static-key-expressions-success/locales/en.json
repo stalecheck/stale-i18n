@@ -1,0 +1,10 @@
+{
+  "dashboard.title": "Dashboard",
+  "dashboard.save": "Save",
+  "dashboard.create": "Create",
+  "dashboard.update": "Update",
+  "dashboard.ready": "Ready",
+  "dashboard.pending": "Pending",
+  "dashboard.ctaCreate": "Create now",
+  "dashboard.ctaUpdate": "Update now"
+}

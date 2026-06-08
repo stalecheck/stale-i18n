@@ -1,0 +1,9 @@
+{
+  "api": "async",
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": []
+  }
+}

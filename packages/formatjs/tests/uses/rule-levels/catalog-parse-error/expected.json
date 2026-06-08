@@ -1,0 +1,8 @@
+{
+  "options": {
+    "catalogs": "invalid-catalog/{locale}.json"
+  },
+  "ruleLevels": {
+    "code": "catalog-parse-error"
+  }
+}

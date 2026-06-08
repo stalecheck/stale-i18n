@@ -8,6 +8,9 @@ export default defineConfig({
       "@stale-i18n/i18next": fileURLToPath(
         new URL("./packages/i18next/src/index.ts", import.meta.url)
       ),
+      "@stale-i18n/formatjs": fileURLToPath(
+        new URL("./packages/formatjs/src/index.ts", import.meta.url)
+      ),
       "@stale-i18n/cli": fileURLToPath(new URL("./packages/cli/src/index.ts", import.meta.url))
     }
   },
@@ -27,6 +30,16 @@ export default defineConfig({
           include: [
             "packages/i18next/tests/unit/**/*.test.ts",
             "packages/i18next/tests/uses/**/*.test.ts"
+          ]
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: "formatjs",
+          include: [
+            "packages/formatjs/tests/unit/**/*.test.ts",
+            "packages/formatjs/tests/uses/**/*.test.ts"
           ]
         }
       },

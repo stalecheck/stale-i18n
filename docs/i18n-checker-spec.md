@@ -233,6 +233,8 @@ Reglas de estructura:
     `catalogs`, `rules`, `rawText`, etc.).
   - `result`: expectativas de `status`, `filesChecked`, `catalogsChecked` y
     diagnosticos esperados.
+  - `api`: `sync` por defecto o `async` para ejecutar `check()` y probar la API
+    publica asincrona.
   - `ruleLevels`: cuando el caso existe para probar una regla en `off`,
     `warning` y `error`.
 - Los tests de `uses` no deben construir el codigo fuente principal con strings
@@ -845,6 +847,73 @@ Reglas de namespace MVP:
 - Si `ns` no es literal estatico, el uso debe reportarse como
   `unresolved-dynamic-key`.
 
+## Paquete `@stale-i18n/formatjs`
+
+FormatJS / React Intl es la segunda libreria a implementar para observar
+duplicacion real antes de extraer helpers comunes al core.
+
+Clase publica:
+
+```ts
+export class FormatjsChecker
+  implements TranslationChecker<FormatjsCheckOptions>
+```
+
+Opciones iniciales:
+
+```ts
+export type FormatjsCheckOptions = BaseCheckOptions & {
+  catalogs: string | string[];
+};
+```
+
+Patrones MVP:
+
+- `const intl = useIntl(); intl.formatMessage({ id: "key" })`
+- `intl.formatMessage({ id: key })` cuando `key` es una expresion string
+  resoluble de forma conservadora.
+- `const descriptor = { id: "key" }; intl.formatMessage(descriptor)`
+- `intl.formatMessage({ id: condition ? "a" : "b" })` debe resolver ambas
+  ramas cuando son strings enumerables.
+- `intl.formatMessage({ id: `status.${state}` })` debe resolver todas las
+  combinaciones enumerables si `state` tambien es enumerable.
+- `enum Messages { Title = "title" }; intl.formatMessage({ id: Messages.Title })`
+  debe resolverse cuando el enum usa inicializadores string literales.
+- `<FormattedMessage id="key" />`
+- `<FormattedMessage id={key} />` cuando `key` es una expresion string
+  resoluble.
+- `<FormattedMessage id={condition ? "a" : "b"} />` debe resolver ambas ramas
+  cuando son strings enumerables.
+- Si el `id` depende de una variable, template o descriptor no enumerable con
+  seguridad, debe reportarse como `unresolved-dynamic-key`.
+
+No incluir inicialmente:
+
+- extraccion de `defaultMessage`;
+- validacion ICU;
+- placeholders;
+- `defineMessages` anidado o importado desde otros ficheros;
+- `FormattedHTMLMessage`;
+- macros/Babel transforms.
+
+Catalogos MVP:
+
+- JSON plano con forma `{ "message.id": "Message" }`.
+- Rutas con placeholder `{locale}`.
+- Multiples catalogos explicitos con `catalogs: string[]`.
+- JSON invalido emite `catalog-parse-error`.
+- Catalogo inexistente emite `catalog-file-not-found`.
+
+Las reglas base (`missing-translation-key`, `missing-locale-key`,
+`unused-translation-key`, `empty-translation-value`, `unresolved-dynamic-key`,
+`source-parse-error`, `catalog-parse-error`, `catalog-file-not-found`) deben
+aplicarse igual que en i18next, sin namespaces.
+
+Los `uses` de FormatJS deben seguir el runner basado en `expected.json` y
+probar cada regla aplicable en `off`, `warning` y `error` desde casos reales.
+`raw-ui-text` queda fuera de FormatJS hasta que `FormatjsCheckOptions`
+incorpore explicitamente `rawText`.
+
 ## CLI
 
 El CLI es un paquete comun, pero no ejecuta multilibreria en un mismo comando.
@@ -984,6 +1053,26 @@ Debe tener tests para:
 - regla `off` no emite diagnostico.
 - severidad `warning` no hace `FAIL`.
 - severidad `error` hace `FAIL`.
+
+### FormatJS
+
+Debe tener tests para:
+
+- `useIntl().formatMessage({ id: "key" })`.
+- `<FormattedMessage id="key" />`.
+- descriptores locales `const descriptor = { id: "key" }`.
+- `id` desde constante string resoluble.
+- `id` desde ternario resoluble.
+- `id` desde template literal resoluble.
+- `id` desde enum string resoluble.
+- `id` dinamico no resoluble reporta `unresolved-dynamic-key`.
+- key usada pero ausente reporta `missing-translation-key`.
+- key presente en un locale pero ausente en otro reporta `missing-locale-key`.
+- key definida y no usada reporta `unused-translation-key`.
+- valor vacio reporta `empty-translation-value`.
+- catatalogos JSON planos con placeholder `{locale}`.
+- multiples catalogos explicitos con `catalogs: string[]`.
+- cada regla aplicable de FormatJS en `off`, `warning` y `error`.
 
 ### Catalogos
 

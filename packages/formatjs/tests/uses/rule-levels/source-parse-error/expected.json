@@ -1,0 +1,8 @@
+{
+  "options": {
+    "target": "invalid-source"
+  },
+  "ruleLevels": {
+    "code": "source-parse-error"
+  }
+}

@@ -216,6 +216,22 @@ export function flattenCatalog(
   prefix = ""
 ): CatalogEntry[] {
   if (
+    context.keySeparator === false &&
+    prefix === "" &&
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    return Object.entries(value as Record<string, unknown>).map(([key, child]) => ({
+      key,
+      namespace: context.namespace,
+      ...(context.locale === undefined ? {} : { locale: context.locale }),
+      filePath: context.filePath,
+      value: child
+    }));
+  }
+
+  if (
     context.keySeparator !== false &&
     value !== null &&
     typeof value === "object" &&

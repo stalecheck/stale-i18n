@@ -60,7 +60,11 @@ importers:
         specifier: 'catalog:'
         version: 11.20.0
 
-  packages/formatjs: {}
+  packages/formatjs:
+    dependencies:
+      '@stale-i18n/core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/i18next:
     dependencies:

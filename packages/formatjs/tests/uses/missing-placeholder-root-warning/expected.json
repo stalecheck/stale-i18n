@@ -1,0 +1,21 @@
+{
+  "options": {
+    "catalogs": "missing-locales/{locale}.json",
+    "rules": {
+      "catalog-file-not-found": "warning",
+      "missing-translation-key": "off",
+      "unresolved-dynamic-key": "off"
+    }
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 1,
+    "diagnostics": [
+      {
+        "code": "catalog-file-not-found",
+        "severity": "warning"
+      }
+    ]
+  }
+}

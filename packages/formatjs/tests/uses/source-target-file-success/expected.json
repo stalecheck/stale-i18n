@@ -1,0 +1,11 @@
+{
+  "options": {
+    "target": "src/app.tsx"
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": []
+  }
+}

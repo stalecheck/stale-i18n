@@ -1,0 +1,8 @@
+{
+  "options": {
+    "catalogs": ["locales/en.json"]
+  },
+  "ruleLevels": {
+    "code": "catalog-file-not-found"
+  }
+}

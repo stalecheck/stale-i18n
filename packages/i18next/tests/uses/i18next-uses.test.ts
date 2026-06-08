@@ -35,6 +35,7 @@ type RawJsonOptions = Partial<
 >;
 
 type ExpectedUseCase = {
+  api?: "async" | "sync";
   options?: RawJsonOptions;
   result?: ResultExpectation;
   variants?: Array<{
@@ -194,6 +195,11 @@ function checkCase(caseDir: string, options: RawJsonOptions = {}) {
   return new I18nextChecker(buildOptions(caseDir, options)).checkSync();
 }
 
+async function checkUseCase(useCase: UseCase) {
+  const checker = new I18nextChecker(buildOptions(useCase.dir, useCase.expected.options));
+  return useCase.expected.api === "async" ? checker.check() : checker.checkSync();
+}
+
 function checkRuleLevel(
   caseDir: string,
   code: RuleCode,
@@ -265,8 +271,8 @@ describe("i18next public API use cases", () => {
       continue;
     }
 
-    it(useCase.name, () => {
-      const result = checkCase(useCase.dir, useCase.expected.options);
+    it(useCase.name, async () => {
+      const result = await checkUseCase(useCase);
 
       expectResult(result, useCase.expected.result);
     });

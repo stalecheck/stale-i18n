@@ -1,0 +1,19 @@
+{
+  "options": {
+    "rules": {
+      "catalog-parse-error": "warning",
+      "missing-locale-key": "off"
+    }
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "catalog-parse-error",
+        "severity": "warning"
+      }
+    ]
+  }
+}
