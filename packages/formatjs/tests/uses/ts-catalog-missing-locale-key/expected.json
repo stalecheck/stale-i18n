@@ -1,0 +1,18 @@
+{
+  "options": {
+    "catalogs": "locales/{locale}.ts"
+  },
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "missing-locale-key",
+        "severity": "error",
+        "key": "home.cta",
+        "locale": "es"
+      }
+    ]
+  }
+}

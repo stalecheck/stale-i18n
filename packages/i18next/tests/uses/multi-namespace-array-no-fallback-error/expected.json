@@ -1,0 +1,18 @@
+{
+  "result": {
+    "status": "FAIL",
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "checkout.pay"
+      }
+    ],
+    "absentDiagnostics": [
+      {
+        "code": "unused-translation-key",
+        "key": "checkout.pay"
+      }
+    ]
+  }
+}

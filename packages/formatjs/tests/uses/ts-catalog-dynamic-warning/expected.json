@@ -1,0 +1,19 @@
+{
+  "options": {
+    "catalogs": "locales/{locale}.ts",
+    "rules": {
+      "catalog-parse-error": "warning"
+    }
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "catalog-parse-error",
+        "severity": "warning"
+      }
+    ]
+  }
+}

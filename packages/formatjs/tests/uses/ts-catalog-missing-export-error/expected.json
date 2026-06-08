@@ -1,0 +1,19 @@
+{
+  "options": {
+    "catalogs": "locales/{locale}.ts",
+    "rules": {
+      "missing-translation-key": "off"
+    }
+  },
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "catalog-parse-error",
+        "severity": "error"
+      }
+    ]
+  }
+}
