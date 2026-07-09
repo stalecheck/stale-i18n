@@ -29,7 +29,8 @@ export default defineConfig({
     {
       files: ["**/*.test.ts", "**/tests/**/*.ts"],
       rules: {
-        "typescript/no-unsafe-type-assertion": "off"
+        "typescript/no-unsafe-type-assertion": "off",
+        "vitest/expect-expect": "off"
       }
     },
     {

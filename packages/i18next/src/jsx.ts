@@ -19,6 +19,6 @@ export function jsxAttributeStringValue(attribute: AnyNode): string | undefined 
   if (value.type === "Literal") return typeof value.value === "string" ? value.value : undefined;
   if (value.type === "StringLiteral")
     return typeof value.value === "string" ? value.value : undefined;
-  if (value.type === "JSXExpressionContainer") return stringLiteral(value.expression as AnyNode);
+  if (value.type === "JSXExpressionContainer") return stringLiteral(value.expression);
   return undefined;
 }

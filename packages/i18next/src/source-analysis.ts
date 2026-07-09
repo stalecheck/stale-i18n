@@ -335,7 +335,7 @@ function namespaceOverrideFromOptions(node: AnyNode | undefined): string | false
   if (!nsProperty) {
     return undefined;
   }
-  return stringLiteral(nsProperty.value as AnyNode) ?? false;
+  return stringLiteral(nsProperty.value) ?? false;
 }
 
 type KeyVariant = {
