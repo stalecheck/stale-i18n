@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.0-beta.1](https://github.com/stalecheck/stale-i18n/compare/v0.1.0-beta.0...v0.1.0-beta.1) (2026-07-09)
+
+
+### Features
+
+* add cli formatjs ([22d235e](https://github.com/stalecheck/stale-i18n/commit/22d235e0890bf909c26cd900a9362298c1976216))
+
 ## 0.1.0-beta.0 (2026-07-09)
 
 

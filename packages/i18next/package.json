@@ -1,6 +1,6 @@
 {
   "name": "@stale-i18n/i18next",
-  "version": "0.1.0-beta.0",
+  "version": "0.1.0-beta.1",
   "description": "i18next integration for stale i18n checks.",
   "license": "MIT",
   "repository": {
