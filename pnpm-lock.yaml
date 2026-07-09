@@ -77,9 +77,6 @@ importers:
       '@stale-i18n/core':
         specifier: workspace:*
         version: link:../core
-      oxc-parser:
-        specifier: 'catalog:'
-        version: 0.139.0
     devDependencies:
       i18next:
         specifier: 26.3.4

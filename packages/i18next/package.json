@@ -27,8 +27,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@stale-i18n/core": "workspace:*",
-    "oxc-parser": "catalog:"
+    "@stale-i18n/core": "workspace:*"
   },
   "devDependencies": {
     "i18next": "26.3.4"

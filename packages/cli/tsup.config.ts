@@ -1,4 +1,8 @@
+import { createRequire } from "node:module";
 import { defineConfig } from "tsup";
+
+const require = createRequire(import.meta.url);
+const packageJson = require("./package.json") as { dependencies?: Record<string, string> };
 
 export default defineConfig({
   entry: {
@@ -11,7 +15,8 @@ export default defineConfig({
   platform: "node",
   target: "es2022",
   skipNodeModulesBundle: true,
-  tsconfig: "tsconfig.json",
+  external: Object.keys(packageJson.dependencies ?? {}),
+  tsconfig: "../../tsconfig.build.json",
   banner: {
     js: "#!/usr/bin/env node"
   }
