@@ -1,0 +1,34 @@
+{
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "title"
+      },
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "heading"
+      },
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "save"
+      },
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "total"
+      },
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "subject"
+      }
+    ]
+  }
+}

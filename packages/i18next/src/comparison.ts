@@ -34,7 +34,7 @@ export function compareUsages(
     const namespace = usage.message.namespace ?? options.defaultNamespace ?? "translation";
     const id = catalogId(namespace, usage.message.id);
     usedIds.add(id);
-    if (!catalogKeys.has(id) && catalogs.validNamespaces.has(namespace)) {
+    if (!catalogKeys.has(id)) {
       diagnostics.push(
         createDiagnostic({
           code: "missing-translation-key",
@@ -146,11 +146,7 @@ function markNestedCatalogUsages(
           queue.push(referenceId);
         }
 
-        if (
-          !catalogKeys.has(referenceId) &&
-          catalogs.validNamespaces.has(reference.namespace) &&
-          !missingNestedIds.has(referenceId)
-        ) {
+        if (!catalogKeys.has(referenceId) && !missingNestedIds.has(referenceId)) {
           missingNestedIds.add(referenceId);
           diagnostics.push(
             createDiagnostic({

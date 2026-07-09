@@ -8,7 +8,7 @@
     }
   },
   "result": {
-    "status": "SUCCESS",
+    "status": "FAIL",
     "diagnostics": [
       {
         "code": "catalog-parse-error",
@@ -21,6 +21,11 @@
       {
         "code": "unresolved-dynamic-key",
         "severity": "warning"
+      },
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "title"
       }
     ],
     "absentDiagnostics": [
