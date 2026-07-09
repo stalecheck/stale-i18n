@@ -31,6 +31,12 @@ export default defineConfig({
       rules: {
         "typescript/no-unsafe-type-assertion": "off"
       }
+    },
+    {
+      files: ["**/tests/uses/**/*.{ts,tsx}"],
+      rules: {
+        "import/no-named-as-default-member": "off"
+      }
     }
   ]
 });

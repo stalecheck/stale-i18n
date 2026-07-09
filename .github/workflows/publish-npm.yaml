@@ -1,0 +1,159 @@
+name: Publish npm staging
+
+on:
+  release:
+    types:
+      - published
+
+concurrency:
+  group: publish-npm-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+
+jobs:
+  stage:
+    name: Stage packages on npm
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm-production
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22.12.0
+          registry-url: https://registry.npmjs.org/
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
+        with:
+          version: 11.4.0
+
+      - name: Verify release version
+        run: |
+          set -euo pipefail
+
+          release_tag="${{ github.event.release.tag_name }}"
+          version="${release_tag#v}"
+
+          node --input-type=module - "$version" <<'NODE'
+          import { readFileSync } from "node:fs";
+
+          const expectedVersion = process.argv[2];
+          const publicPackages = [
+            "packages/core/package.json",
+            "packages/i18next/package.json",
+            "packages/paraglide/package.json",
+            "packages/formatjs/package.json",
+            "packages/cli/package.json",
+          ];
+
+          const root = JSON.parse(readFileSync("package.json", "utf8"));
+          const manifests = publicPackages.map((filePath) => ({
+            filePath,
+            manifest: JSON.parse(readFileSync(filePath, "utf8")),
+          }));
+
+          const failures = [];
+          if (root.version !== expectedVersion) {
+            failures.push(`package.json has version ${root.version}, expected ${expectedVersion}`);
+          }
+
+          for (const { filePath, manifest } of manifests) {
+            if (manifest.version !== expectedVersion) {
+              failures.push(`${filePath} has version ${manifest.version}, expected ${expectedVersion}`);
+            }
+            if (!manifest.name.startsWith("@stale-i18n/")) {
+              failures.push(`${filePath} is outside the @stale-i18n npm scope`);
+            }
+            if (manifest.private === true) {
+              failures.push(`${filePath} is private and cannot be published`);
+            }
+            if (manifest.publishConfig?.access !== "public") {
+              failures.push(`${filePath} must set publishConfig.access to public`);
+            }
+            if (manifest.publishConfig?.registry !== "https://registry.npmjs.org/") {
+              failures.push(`${filePath} must publish to https://registry.npmjs.org/`);
+            }
+          }
+
+          if (failures.length > 0) {
+            for (const failure of failures) {
+              console.error(`::error::${failure}`);
+            }
+            process.exit(1);
+          }
+          NODE
+
+      - name: Resolve npm dist-tag
+        run: |
+          set -euo pipefail
+
+          version="${{ github.event.release.tag_name }}"
+          version="${version#v}"
+
+          if [[ "$version" == *-* ]]; then
+            prerelease="${version#*-}"
+            tag="${prerelease%%.*}"
+          else
+            tag="latest"
+          fi
+
+          echo "NPM_TAG=$tag" >> "$GITHUB_ENV"
+          echo "Resolved npm dist-tag: $tag"
+
+      - name: Verify lockfiles
+        run: |
+          set -euo pipefail
+
+          test -f pnpm-lock.yaml
+          for lockfile in package-lock.json npm-shrinkwrap.json yarn.lock bun.lock bun.lockb; do
+            if [ -f "$lockfile" ]; then
+              echo "::error file=$lockfile::Only pnpm-lock.yaml is allowed"
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --audit-level high
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Dry-run staged publish
+        run: pnpm stage publish --recursive --access public --tag "$NPM_TAG" --dry-run --no-git-checks
+
+      - name: Stage packages
+        run: pnpm stage publish --recursive --access public --tag "$NPM_TAG" --json --no-git-checks
+
+      - name: Approval instructions
+        run: |
+          {
+            echo "### npm staged publishing"
+            echo ""
+            echo "Packages were uploaded to npm staging for the \`@stale-i18n\` organization."
+            echo ""
+            echo "- Dist-tag: \`$NPM_TAG\`"
+            echo "- Approve from npm using 2FA after inspecting the staged versions."
+            echo "- Reject staged versions if the artifacts do not match the release."
+          } >> "$GITHUB_STEP_SUMMARY"

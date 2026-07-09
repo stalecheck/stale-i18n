@@ -1,0 +1,15 @@
+{
+  "preset": "conventionalcommits",
+  "tagPrefix": "v",
+  "packageFiles": [
+    "package.json"
+  ],
+  "bumpFiles": [
+    "package.json",
+    "packages/core/package.json",
+    "packages/i18next/package.json",
+    "packages/paraglide/package.json",
+    "packages/formatjs/package.json",
+    "packages/cli/package.json"
+  ]
+}

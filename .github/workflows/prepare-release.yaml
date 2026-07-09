@@ -1,0 +1,183 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel to prepare.
+        required: true
+        type: choice
+        default: beta
+        options:
+          - beta
+          - release
+      release_as:
+        description: Version bump. Use auto to follow conventional commits.
+        required: true
+        type: choice
+        default: auto
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+      auto_merge:
+        description: Enable auto-merge for the release PR.
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: prepare-release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CI: true
+  GH_TOKEN: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+
+jobs:
+  prepare:
+    name: Prepare release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 22.12.0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6
+        with:
+          version: 11.4.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify release token
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Set the RELEASE_GITHUB_TOKEN repository secret to a PAT that can push branches and create pull requests."
+            exit 1
+          fi
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update versions and changelog
+        run: |
+          set -euo pipefail
+
+          args=(--skip.commit --skip.tag --noBumpWhenEmptyChanges)
+
+          if [ "${{ inputs.channel }}" = "beta" ]; then
+            args+=(--prerelease beta)
+          fi
+
+          if [ "${{ inputs.release_as }}" != "auto" ]; then
+            args+=(--release-as "${{ inputs.release_as }}")
+          fi
+
+          pnpm exec commit-and-tag-version "${args[@]}"
+
+      - name: Resolve prepared version
+        id: version
+        run: |
+          set -euo pipefail
+
+          version="$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version)")"
+          tag="v$version"
+          branch="release/$tag"
+
+          if git diff --quiet; then
+            echo "::error::No release changes were generated. Check that there are conventional commits since the previous release."
+            exit 1
+          fi
+
+          git fetch --tags origin
+
+          if git rev-parse --verify --quiet "refs/tags/$tag"; then
+            echo "::error::Tag $tag already exists."
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "branch=$branch"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit release changes
+        run: |
+          set -euo pipefail
+
+          git switch -c "${{ steps.version.outputs.branch }}"
+          git add CHANGELOG.md package.json packages/*/package.json
+          git commit -m "chore(release): ${{ steps.version.outputs.version }}"
+
+      - name: Push release branch
+        run: git push --force-with-lease origin "HEAD:${{ steps.version.outputs.branch }}"
+
+      - name: Create or update pull request
+        id: pr
+        run: |
+          set -euo pipefail
+
+          branch="${{ steps.version.outputs.branch }}"
+          title="chore(release): ${{ steps.version.outputs.version }}"
+          body_file="$(mktemp)"
+          {
+            echo "Prepares ${{ inputs.channel }} ${{ steps.version.outputs.tag }}."
+            echo ""
+            echo "This PR updates package versions and CHANGELOG.md."
+            echo ""
+            echo "After this PR is merged, the release tag will be created automatically from main."
+          } > "$body_file"
+
+          pr_url="$(gh pr list --head "$branch" --base main --state open --json url --jq '.[0].url')"
+
+          if [ -z "$pr_url" ]; then
+            pr_url="$(gh pr create --base main --head "$branch" --title "$title" --body-file "$body_file")"
+          else
+            gh pr edit "$pr_url" --title "$title" --body-file "$body_file"
+          fi
+
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge
+        if: ${{ inputs.auto_merge }}
+        run: |
+          gh repo view --json nameWithOwner,mergeCommitAllowed,squashMergeAllowed,rebaseMergeAllowed,autoMergeAllowed
+          gh pr view "${{ steps.pr.outputs.url }}" --json url,state,isDraft,mergeStateStatus,autoMergeRequest
+
+          if ! gh pr merge "${{ steps.pr.outputs.url }}" --squash --auto --delete-branch; then
+            echo "::error::Auto-merge could not be enabled by the workflow token. Check the repository auto-merge setting and the permissions of RELEASE_GITHUB_TOKEN."
+            exit 1
+          fi
+
+      - name: Release summary
+        run: |
+          {
+            echo "### Release PR prepared"
+            echo ""
+            echo "- Channel: \`${{ inputs.channel }}\`"
+            echo "- Version: \`${{ steps.version.outputs.version }}\`"
+            echo "- Branch: \`${{ steps.version.outputs.branch }}\`"
+            echo "- Pull request: ${{ steps.pr.outputs.url }}"
+            echo ""
+            echo "Merge the PR into \`main\`; the release tag will be created automatically after merge."
+          } >> "$GITHUB_STEP_SUMMARY"

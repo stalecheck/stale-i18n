@@ -1,0 +1,92 @@
+name: Tag release on merge
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+concurrency:
+  group: tag-release-main
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: read
+
+env:
+  CI: true
+
+jobs:
+  tag:
+    name: Tag merged release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'release/v') }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Resolve release tag
+        id: release
+        run: |
+          set -euo pipefail
+
+          version="$(node -e "console.log(JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version)")"
+          tag="v$version"
+          expected_branch="release/$tag"
+          merged_branch="${{ github.event.pull_request.head.ref }}"
+
+          if [ "$merged_branch" != "$expected_branch" ]; then
+            echo "::error::Merged branch $merged_branch does not match package version $version."
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        run: |
+          set -euo pipefail
+
+          tag="${{ steps.release.outputs.tag }}"
+          target="${{ github.event.pull_request.merge_commit_sha }}"
+
+          git fetch --tags origin
+
+          if git rev-parse --verify --quiet "refs/tags/$tag"; then
+            existing_target="$(git rev-list -n 1 "$tag")"
+            if [ "$existing_target" != "$target" ]; then
+              echo "::error::Tag $tag already exists at $existing_target, expected $target."
+              exit 1
+            fi
+
+            echo "Tag $tag already exists at the merged release commit."
+            exit 0
+          fi
+
+          git tag -a "$tag" "$target" -m "chore(release): ${{ steps.release.outputs.version }}"
+          git push origin "$tag"
+
+      - name: Release summary
+        run: |
+          {
+            echo "### Release tag created"
+            echo ""
+            echo "- Version: \`${{ steps.release.outputs.version }}\`"
+            echo "- Tag: \`${{ steps.release.outputs.tag }}\`"
+            echo ""
+            echo "Create and publish the GitHub release from this tag to trigger npm staging."
+          } >> "$GITHUB_STEP_SUMMARY"
