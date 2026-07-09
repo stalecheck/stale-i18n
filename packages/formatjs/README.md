@@ -64,10 +64,7 @@ Catalog paths support the `{locale}` placeholder:
 ```ts
 const result = await new FormatjsChecker({
   target: "src",
-  catalogs: [
-    "locales/{locale}.json",
-    "packages/admin/locales/{locale}.json"
-  ]
+  catalogs: ["locales/{locale}.json", "packages/admin/locales/{locale}.json"]
 }).check();
 ```
 

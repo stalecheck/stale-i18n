@@ -3,6 +3,7 @@ import {
   type I18nextCheckMode,
   type I18nextCheckOptions
 } from "@stale-i18n/i18next";
+import { FormatjsChecker, type FormatjsCheckOptions } from "@stale-i18n/formatjs";
 import {
   RULE_DEFINITIONS,
   type CheckResult,
@@ -30,27 +31,38 @@ const PROHIBITED_OPTIONS = new Set([
 export async function runCli(argv: string[]): Promise<CliRunResult> {
   try {
     const parsed = parseArgs(argv);
-    if (parsed.command !== "i18next") {
+
+    if (parsed.command === "i18next") {
+      const options: I18nextCheckOptions = {
+        target: parsed.target,
+        catalogs: parsed.catalogs,
+        ...(parsed.ignore.length === 0 ? {} : { ignore: parsed.ignore }),
+        ...(parsed.mode === undefined ? {} : { mode: parsed.mode }),
+        ...(parsed.defaultNamespace === undefined
+          ? {}
+          : { defaultNamespace: parsed.defaultNamespace }),
+        ...(Object.keys(parsed.rules).length === 0 ? {} : { rules: parsed.rules })
+      };
+      const checker = new I18nextChecker(options);
+      return formatRunResult(await checker.check(), parsed.format);
+    }
+
+    if (parsed.command === "formatjs") {
+      const options: FormatjsCheckOptions = {
+        target: parsed.target,
+        catalogs: parsed.catalogs,
+        ...(parsed.ignore.length === 0 ? {} : { ignore: parsed.ignore }),
+        ...(Object.keys(parsed.rules).length === 0 ? {} : { rules: parsed.rules })
+      };
+      const checker = new FormatjsChecker(options);
+      return formatRunResult(await checker.check(), parsed.format);
+    }
+
+    if (parsed.command !== undefined) {
       return invalid(`Unsupported command "${parsed.command ?? ""}"`);
     }
 
-    const options: I18nextCheckOptions = {
-      target: parsed.target,
-      catalogs: parsed.catalogs,
-      ...(parsed.mode === undefined ? {} : { mode: parsed.mode }),
-      ...(parsed.defaultNamespace === undefined
-        ? {}
-        : { defaultNamespace: parsed.defaultNamespace }),
-      ...(Object.keys(parsed.rules).length === 0 ? {} : { rules: parsed.rules })
-    };
-    const checker = new I18nextChecker(options);
-    const result = await checker.check();
-    return {
-      exitCode: result.status === "FAIL" ? 1 : 0,
-      stdout:
-        parsed.format === "json" ? `${JSON.stringify(result, null, 2)}\n` : formatText(result),
-      stderr: ""
-    };
+    return invalid('Unsupported command ""');
   } catch (error) {
     return invalid(error instanceof Error ? error.message : "Invalid arguments");
   }
@@ -60,6 +72,7 @@ function parseArgs(argv: string[]): {
   command?: string;
   target: string;
   catalogs: string[];
+  ignore: string[];
   mode?: I18nextCheckMode | undefined;
   defaultNamespace?: string | undefined;
   rules: RuleOverrides;
@@ -77,6 +90,7 @@ function parseArgs(argv: string[]): {
   }
 
   const catalogs: string[] = [];
+  const ignore: string[] = [];
   const rules: RuleOverrides = {};
   let mode: I18nextCheckMode | undefined;
   let defaultNamespace: string | undefined;
@@ -91,7 +105,17 @@ function parseArgs(argv: string[]): {
       index += 1;
       continue;
     }
+    if (arg === "--ignore") {
+      const value = rest[index + 1];
+      if (!value) throw new Error("--ignore requires a value");
+      ignore.push(value);
+      index += 1;
+      continue;
+    }
     if (arg === "--default-namespace") {
+      if (command !== "i18next") {
+        throw new Error("--default-namespace is only supported for i18next");
+      }
       const value = rest[index + 1];
       if (!value) throw new Error("--default-namespace requires a value");
       defaultNamespace = value;
@@ -99,6 +123,9 @@ function parseArgs(argv: string[]): {
       continue;
     }
     if (arg === "--mode") {
+      if (command !== "i18next") {
+        throw new Error("--mode is only supported for i18next");
+      }
       const value = rest[index + 1];
       if (value !== "jsx") throw new Error("--mode must be jsx");
       mode = value;
@@ -130,7 +157,7 @@ function parseArgs(argv: string[]): {
     throw new Error("--catalog is required");
   }
 
-  return { command, target, catalogs, mode, defaultNamespace, rules, format };
+  return { command, target, catalogs, ignore, mode, defaultNamespace, rules, format };
 }
 
 function isRuleCode(value: string | undefined): value is RuleCode {
@@ -146,6 +173,14 @@ function invalid(message: string): CliRunResult {
     exitCode: 2,
     stdout: "",
     stderr: `${message}\n`
+  };
+}
+
+function formatRunResult(result: CheckResult, format: CliFormat): CliRunResult {
+  return {
+    exitCode: result.status === "FAIL" ? 1 : 0,
+    stdout: format === "json" ? `${JSON.stringify(result, null, 2)}\n` : formatText(result),
+    stderr: ""
   };
 }
 

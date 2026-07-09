@@ -271,6 +271,7 @@ The CLI exposes library-specific subcommands. Current stable support is:
 
 ```sh
 stale-i18n i18next <target>
+stale-i18n formatjs <target>
 ```
 
 Common options:
@@ -280,6 +281,8 @@ Common options:
 - `--mode jsx`;
 - `--rule code=level`;
 - `--format text|json`.
+
+`--mode jsx` is currently i18next-only.
 
 Exit codes:
 

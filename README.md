@@ -33,14 +33,17 @@ Package documentation:
 - [`@stale-i18n/cli`](./packages/cli/README.md): command-line usage for CI and local checks.
 - [`@stale-i18n/i18next`](./packages/i18next/README.md): i18next and react-i18next source and catalog checks.
 - [`@stale-i18n/formatjs`](./packages/formatjs/README.md): FormatJS and React Intl source and catalog checks.
+- [`@stale-i18n/paraglide`](./packages/paraglide/README.md): experimental Paraglide API.
 - [`@stale-i18n/core`](./packages/core/README.md): internal shared infrastructure for this monorepo.
 
 ## CLI
 
-The CLI currently supports i18next projects.
+The CLI currently supports i18next and FormatJS projects. Paraglide remains an
+experimental API package and is not wired into the CLI yet.
 
 ```sh
 pnpm stale-i18n i18next ./src --catalog ./locales/{locale}/{namespace}.json
+pnpm stale-i18n formatjs ./src --catalog ./locales/{locale}.json
 ```
 
 Use `--default-namespace` when code calls `t("key")` without an explicit namespace:
@@ -66,6 +69,14 @@ pnpm stale-i18n i18next ./src \
   --catalog ./locales/{locale}/{namespace}.json \
   --rule unused-translation-key=warning \
   --rule raw-ui-text=off
+```
+
+Ignore generated or vendor source files:
+
+```sh
+pnpm stale-i18n formatjs ./src \
+  --catalog ./locales/{locale}.json \
+  --ignore ./src/generated
 ```
 
 Exit codes:

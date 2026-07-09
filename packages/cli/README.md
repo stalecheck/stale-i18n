@@ -15,14 +15,14 @@ The package provides the `stale-i18n` executable and requires Node.js 22.12 or n
 
 ## Supported Commands
 
-The CLI currently supports i18next projects:
+The CLI currently supports i18next and FormatJS projects:
 
 ```sh
 stale-i18n i18next <target>
+stale-i18n formatjs <target>
 ```
 
-Other library packages may expose programmatic APIs before they are wired into the
-CLI.
+Paraglide currently remains available as an experimental programmatic API only.
 
 ## i18next Usage
 
@@ -55,13 +55,31 @@ pnpm stale-i18n i18next ./src \
   --rule raw-ui-text=off
 ```
 
+## FormatJS Usage
+
+```sh
+pnpm stale-i18n formatjs ./src --catalog ./locales/{locale}.json
+```
+
+Use JSON output for CI systems and custom reporters:
+
+```sh
+pnpm stale-i18n formatjs ./src \
+  --catalog ./locales/{locale}.json \
+  --format json
+```
+
 ## Options
 
 - `--catalog <pattern>`: required. Can be passed more than once.
-- `--default-namespace <name>`: namespace for unqualified i18next keys.
-- `--mode jsx`: source mode. `jsx` is currently the only accepted value.
+- `--ignore <pattern>`: source file or directory pattern to skip. Can be passed more than once.
 - `--rule <code=level>`: override a rule with `off`, `warning`, or `error`.
 - `--format text|json`: output format. Defaults to `text`.
+
+i18next-only options:
+
+- `--default-namespace <name>`: namespace for unqualified i18next keys.
+- `--mode jsx`: source mode. `jsx` is currently the only accepted value.
 
 ## Exit Codes
 

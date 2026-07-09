@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@stale-i18n/core": "workspace:*",
+    "@stale-i18n/formatjs": "workspace:*",
     "@stale-i18n/i18next": "workspace:*"
   },
   "engines": {

@@ -39,6 +39,24 @@ function rawUiTextFixture() {
   return dir;
 }
 
+function formatjsFixture() {
+  const dir = mkdtempSync(path.join(tmpdir(), "stale-i18n-cli-formatjs-"));
+  mkdirSync(path.join(dir, "src"), { recursive: true });
+  mkdirSync(path.join(dir, "locales"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "src", "App.tsx"),
+    [
+      'import { FormattedMessage } from "react-intl";',
+      "export function App() {",
+      '  return <FormattedMessage id="save" />;',
+      "}"
+    ].join("\n")
+  );
+  writeFileSync(path.join(dir, "locales", "en.json"), '{"save":"Save"}');
+  writeFileSync(path.join(dir, "locales", "es.json"), '{"save":"Guardar"}');
+  return dir;
+}
+
 describe("CLI", () => {
   it("runs i18next with JSON output and exit code 0", async () => {
     const dir = fixture();
@@ -75,6 +93,36 @@ describe("CLI", () => {
     expect(result.stdout).toContain("missing-locale-key");
   });
 
+  it("ignores matching source files", async () => {
+    const dir = fixture();
+    writeFileSync(
+      path.join(dir, "src", "Ignored.tsx"),
+      [
+        'import { useTranslation } from "react-i18next";',
+        "export function Ignored() {",
+        "  const { t } = useTranslation();",
+        '  return <span>{t("missing")}</span>;',
+        "}"
+      ].join("\n")
+    );
+
+    const result = await runCli([
+      "i18next",
+      path.join(dir, "src"),
+      "--catalog",
+      path.join(dir, "locales", "{locale}", "{namespace}.json"),
+      "--ignore",
+      path.join(dir, "src", "Ignored.tsx"),
+      "--format",
+      "json"
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.objectContaining({ status: "SUCCESS", filesChecked: 1, diagnostics: [] })
+    );
+  });
+
   it("enables raw UI text through rule configuration", async () => {
     const dir = rawUiTextFixture();
 
@@ -94,6 +142,23 @@ describe("CLI", () => {
     expect(result.stdout).toContain("raw-ui-text");
   });
 
+  it("runs formatjs with JSON output and exit code 0", async () => {
+    const dir = formatjsFixture();
+    const result = await runCli([
+      "formatjs",
+      path.join(dir, "src"),
+      "--catalog",
+      path.join(dir, "locales", "{locale}.json"),
+      "--format",
+      "json"
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.objectContaining({ status: "SUCCESS", diagnostics: [] })
+    );
+  });
+
   it("returns exit code 2 for invalid arguments and prohibited options", async () => {
     await expect(runCli(["i18next", "src", "--library", "react-i18next"])).resolves.toEqual(
       expect.objectContaining({ exitCode: 2 })
@@ -104,5 +169,11 @@ describe("CLI", () => {
     await expect(runCli(["i18next", "src", "--mode", "vue"])).resolves.toEqual(
       expect.objectContaining({ exitCode: 2 })
     );
+    await expect(runCli(["formatjs", "src", "--mode", "jsx"])).resolves.toEqual(
+      expect.objectContaining({ exitCode: 2 })
+    );
+    await expect(
+      runCli(["paraglide", "src", "--catalog", "messages/{locale}.json"])
+    ).resolves.toEqual(expect.objectContaining({ exitCode: 2 }));
   });
 });

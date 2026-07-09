@@ -50,6 +50,9 @@ importers:
       '@stale-i18n/core':
         specifier: workspace:*
         version: link:../core
+      '@stale-i18n/formatjs':
+        specifier: workspace:*
+        version: link:../formatjs
       '@stale-i18n/i18next':
         specifier: workspace:*
         version: link:../i18next
