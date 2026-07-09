@@ -31,6 +31,7 @@ export function analyzeProgram(
   const transNames = new Set<string>();
   const i18nextObjectNames = new Set<string>();
   const tBindings = new Map<string, TBinding>();
+  const tObjectBindings = new Map<string, TBinding>();
   const staticStrings = createStaticStringContext();
   const usages: SourceUsage[] = [];
   const diagnostics: Diagnostic[] = [];
@@ -79,8 +80,32 @@ export function analyzeProgram(
         return { hidden };
       }
 
+      if (node.type === "BlockStatement") {
+        const hidden = hiddenBindingsForBlock(
+          node,
+          [
+            useTranslationNames,
+            transNames,
+            i18nextObjectNames,
+            new Set(tBindings.keys()),
+            new Set(tObjectBindings.keys())
+          ],
+          useTranslationNames
+        );
+        if (hidden.size > 0) {
+          return { hidden: new Set([...state.hidden, ...hidden]) };
+        }
+      }
+
       if (node.type === "VariableDeclarator") {
-        collectTBinding(node, useTranslationNames, tBindings, options);
+        collectTBinding(
+          node,
+          useTranslationNames,
+          state.hidden,
+          tBindings,
+          tObjectBindings,
+          options
+        );
         collectStaticStringBinding(node, staticStrings);
       }
 
@@ -105,13 +130,15 @@ export function analyzeProgram(
         const member = memberExpressionName(node.callee as AnyNode | undefined);
         if (
           member?.property === "t" &&
-          i18nextObjectNames.has(member.object) &&
+          (i18nextObjectNames.has(member.object) || tObjectBindings.has(member.object)) &&
           !state.hidden.has(member.object)
         ) {
           usages.push(
             ...usageFromTCall(
               node,
-              { namespace: options.defaultNamespace ?? "translation" },
+              tObjectBindings.get(member.object) ?? {
+                namespace: options.defaultNamespace ?? "translation"
+              },
               source,
               filePath,
               options,
@@ -124,7 +151,7 @@ export function analyzeProgram(
       if (isJsxMode(options) && node.type === "JSXElement") {
         const opening = node.openingElement as AnyNode | undefined;
         const name = jsxName(opening?.name as AnyNode | undefined);
-        if (name && transNames.has(name)) {
+        if (name && transNames.has(name) && !state.hidden.has(name)) {
           usages.push(...usagesFromTrans(node, source, filePath, options, staticStrings));
         }
       }
@@ -150,18 +177,25 @@ function isJsxMode(options: I18nextCheckOptions): boolean {
 function collectTBinding(
   declarator: AnyNode,
   useTranslationNames: Set<string>,
+  hidden: Set<string>,
   tBindings: Map<string, TBinding>,
+  tObjectBindings: Map<string, TBinding>,
   options: I18nextCheckOptions
 ) {
   const init = declarator.init as AnyNode | undefined;
   if (
     init?.type !== "CallExpression" ||
-    !useTranslationNames.has(identifierName(init.callee) ?? "")
+    !useTranslationNames.has(identifierName(init.callee) ?? "") ||
+    hidden.has(identifierName(init.callee) ?? "")
   ) {
     return;
   }
   const binding = bindingFromUseTranslation(init, options);
   const id = declarator.id as AnyNode | undefined;
+  const direct = identifierName(id);
+  if (direct) {
+    tObjectBindings.set(direct, binding);
+  }
   if (id?.type === "ObjectPattern") {
     for (const property of arrayOf<AnyNode>(id.properties)) {
       if (identifierName(property.key) === "t") {
@@ -175,6 +209,40 @@ function collectTBinding(
     const local = identifierName(first);
     if (local) tBindings.set(local, binding);
   }
+}
+
+function hiddenBindingsForBlock(
+  node: AnyNode,
+  trackedNames: Array<Set<string>>,
+  useTranslationNames: Set<string>
+): Set<string> {
+  const tracked = new Set(trackedNames.flatMap((names) => [...names]));
+  const hidden = new Set<string>();
+
+  for (const statement of arrayOf<AnyNode>(node.body)) {
+    if (statement.type !== "VariableDeclaration") {
+      continue;
+    }
+
+    for (const declarator of arrayOf<AnyNode>(statement.declarations)) {
+      const init = declarator.init as AnyNode | undefined;
+      if (
+        init?.type === "CallExpression" &&
+        useTranslationNames.has(identifierName(init.callee) ?? "")
+      ) {
+        continue;
+      }
+
+      const id = declarator.id as AnyNode | undefined;
+      for (const name of id ? bindingNames(id) : []) {
+        if (tracked.has(name)) {
+          hidden.add(name);
+        }
+      }
+    }
+  }
+
+  return hidden;
 }
 
 function bindingFromUseTranslation(call: AnyNode, options: I18nextCheckOptions): TBinding {

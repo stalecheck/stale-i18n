@@ -22,6 +22,7 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
   const useIntlNames = new Set<string>();
   const formattedMessageNames = new Set<string>();
   const intlBindings = new Set<string>();
+  const formatMessageBindings = new Set<string>();
   const staticStrings = createStaticStringContext();
   const descriptorValues: DescriptorValues = new Map();
   const usages: SourceUsage[] = [];
@@ -55,8 +56,19 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
         return { hidden };
       }
 
+      if (node.type === "BlockStatement") {
+        const hidden = hiddenBindingsForBlock(
+          node,
+          [useIntlNames, formattedMessageNames, intlBindings, formatMessageBindings],
+          useIntlNames
+        );
+        if (hidden.size > 0) {
+          return { hidden: new Set([...state.hidden, ...hidden]) };
+        }
+      }
+
       if (node.type === "VariableDeclarator") {
-        collectIntlBinding(node, useIntlNames, intlBindings);
+        collectIntlBinding(node, useIntlNames, state.hidden, intlBindings, formatMessageBindings);
         collectStaticStringBinding(node, staticStrings);
         collectDescriptorBinding(node, staticStrings, descriptorValues);
       }
@@ -66,6 +78,12 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
       }
 
       if (node.type === "CallExpression") {
+        const calleeName = identifierName(node.callee);
+        if (calleeName && formatMessageBindings.has(calleeName) && !state.hidden.has(calleeName)) {
+          usages.push(
+            ...usagesFromFormatMessage(node, source, filePath, staticStrings, descriptorValues)
+          );
+        }
         const member = memberExpressionName(node.callee as AnyNode | undefined);
         if (
           member?.property === "formatMessage" &&
@@ -81,7 +99,7 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
       if (node.type === "JSXElement") {
         const opening = node.openingElement as AnyNode | undefined;
         const name = jsxName(opening?.name as AnyNode | undefined);
-        if (name && formattedMessageNames.has(name)) {
+        if (name && formattedMessageNames.has(name) && !state.hidden.has(name)) {
           usages.push(...usagesFromFormattedMessage(node, source, filePath, staticStrings));
         }
       }
@@ -96,17 +114,65 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
 function collectIntlBinding(
   declarator: AnyNode,
   useIntlNames: Set<string>,
-  intlBindings: Set<string>
+  hidden: Set<string>,
+  intlBindings: Set<string>,
+  formatMessageBindings: Set<string>
 ) {
-  const id = identifierName(declarator.id);
   const init = declarator.init as AnyNode | undefined;
-  if (
-    id &&
-    init?.type === "CallExpression" &&
-    useIntlNames.has(identifierName(init.callee) ?? "")
-  ) {
-    intlBindings.add(id);
+  const calleeName = identifierName(init?.callee);
+  if (!init || init.type !== "CallExpression" || !calleeName || !useIntlNames.has(calleeName)) {
+    return;
   }
+  if (hidden.has(calleeName)) {
+    return;
+  }
+
+  const id = declarator.id as AnyNode | undefined;
+  const direct = identifierName(id);
+  if (direct) {
+    intlBindings.add(direct);
+  }
+  if (id?.type === "ObjectPattern") {
+    for (const property of arrayOf<AnyNode>(id.properties)) {
+      if (identifierName(property.key) === "formatMessage") {
+        const local = identifierName(property.value);
+        if (local) {
+          formatMessageBindings.add(local);
+        }
+      }
+    }
+  }
+}
+
+function hiddenBindingsForBlock(
+  node: AnyNode,
+  trackedNames: Array<Set<string>>,
+  useIntlNames: Set<string>
+): Set<string> {
+  const tracked = new Set(trackedNames.flatMap((names) => [...names]));
+  const hidden = new Set<string>();
+
+  for (const statement of arrayOf<AnyNode>(node.body)) {
+    if (statement.type !== "VariableDeclaration") {
+      continue;
+    }
+
+    for (const declarator of arrayOf<AnyNode>(statement.declarations)) {
+      const init = declarator.init as AnyNode | undefined;
+      if (init?.type === "CallExpression" && useIntlNames.has(identifierName(init.callee) ?? "")) {
+        continue;
+      }
+
+      const id = declarator.id as AnyNode | undefined;
+      for (const name of id ? bindingNames(id) : []) {
+        if (tracked.has(name)) {
+          hidden.add(name);
+        }
+      }
+    }
+  }
+
+  return hidden;
 }
 
 function collectDescriptorBinding(
