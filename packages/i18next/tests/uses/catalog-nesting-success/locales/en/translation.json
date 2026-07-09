@@ -1,0 +1,6 @@
+{
+  "nesting1": "1 $t(nesting2)",
+  "nesting2": "2 $t(nesting3)",
+  "nesting3": "3",
+  "crossNamespace": "Read the $t(common:glossary)"
+}

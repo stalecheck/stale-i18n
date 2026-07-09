@@ -49,6 +49,8 @@ export function compareUsages(
     }
   }
 
+  markNestedCatalogUsages(usedIds, catalogKeys, catalogs, options, diagnostics);
+
   for (const [id, entries] of catalogKeys) {
     const locales = new Map(entries.map((entry) => [entry.locale, entry]));
     const first = entries[0]!;
@@ -115,4 +117,91 @@ export function compareUsages(
 
 function catalogId(namespace: string, key: string): string {
   return `${namespace}:${key}`;
+}
+
+function markNestedCatalogUsages(
+  usedIds: Set<string>,
+  catalogKeys: Map<string, CatalogEntry[]>,
+  catalogs: CatalogReadResult,
+  options: I18nextCheckOptions,
+  diagnostics: Array<Diagnostic | null>
+) {
+  const visited = new Set<string>();
+  const missingNestedIds = new Set<string>();
+  const queue = [...usedIds];
+
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    if (visited.has(id)) {
+      continue;
+    }
+    visited.add(id);
+
+    const entries = catalogKeys.get(id) ?? [];
+    for (const entry of entries) {
+      for (const reference of nestedReferences(entry.value, entry.namespace, options)) {
+        const referenceId = catalogId(reference.namespace, reference.key);
+        if (!usedIds.has(referenceId)) {
+          usedIds.add(referenceId);
+          queue.push(referenceId);
+        }
+
+        if (
+          !catalogKeys.has(referenceId) &&
+          catalogs.validNamespaces.has(reference.namespace) &&
+          !missingNestedIds.has(referenceId)
+        ) {
+          missingNestedIds.add(referenceId);
+          diagnostics.push(
+            createDiagnostic({
+              code: "missing-translation-key",
+              rules: options.rules,
+              message: `Missing translation key "${reference.key}"`,
+              filePath: entry.filePath,
+              catalogPath: entry.filePath,
+              line: 1,
+              column: 1,
+              key: reference.key,
+              locale: entry.locale
+            })
+          );
+        }
+      }
+    }
+  }
+}
+
+function nestedReferences(
+  value: unknown,
+  namespace: string,
+  options: I18nextCheckOptions
+): Array<{ namespace: string; key: string }> {
+  if (typeof value !== "string") {
+    return [];
+  }
+
+  const references: Array<{ namespace: string; key: string }> = [];
+  const pattern = /\$t\(\s*([^,)]+)(?:,[^)]*)?\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(value)) !== null) {
+    const rawKey = match[1]?.trim().replace(/^["'`]|["'`]$/g, "");
+    if (rawKey) {
+      references.push(resolveNestedReference(rawKey, namespace, options));
+    }
+  }
+  return references;
+}
+
+function resolveNestedReference(
+  rawKey: string,
+  namespace: string,
+  options: I18nextCheckOptions
+): { namespace: string; key: string } {
+  const namespaceSeparator =
+    options.namespaceSeparator === false ? false : (options.namespaceSeparator ?? ":");
+  if (namespaceSeparator !== false && rawKey.includes(namespaceSeparator)) {
+    const [nestedNamespace, ...rest] = rawKey.split(namespaceSeparator);
+    return { namespace: nestedNamespace!, key: rest.join(namespaceSeparator) };
+  }
+  return { namespace, key: rawKey };
 }
