@@ -1,0 +1,16 @@
+{
+  "options": {
+    "target": "src/**/*.tsx"
+  },
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 0,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "source-target-not-found",
+        "severity": "error"
+      }
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "options": {
+    "target": ["src/*.tsx", "src/**/*.tsx"],
+    "ignorePaths": ["generated/**"]
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 2,
+    "catalogsChecked": 2,
+    "diagnostics": []
+  }
+}

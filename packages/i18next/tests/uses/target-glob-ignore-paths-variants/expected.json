@@ -1,0 +1,61 @@
+{
+  "variants": [
+    {
+      "name": "glob target uses default ignored paths when ignorePaths is omitted",
+      "options": {
+        "target": ["src/*.tsx", "src/dist/**/*.tsx"]
+      },
+      "result": {
+        "status": "SUCCESS",
+        "filesChecked": 1,
+        "catalogsChecked": 2,
+        "diagnostics": []
+      }
+    },
+    {
+      "name": "glob target with empty ignorePaths disables defaults",
+      "options": {
+        "target": "src/**/*.tsx",
+        "ignorePaths": []
+      },
+      "result": {
+        "status": "FAIL",
+        "filesChecked": 3,
+        "catalogsChecked": 2,
+        "diagnostics": [
+          {
+            "code": "missing-translation-key",
+            "key": "dist.missing"
+          },
+          {
+            "code": "missing-translation-key",
+            "key": "generated.missing"
+          }
+        ]
+      }
+    },
+    {
+      "name": "glob target with custom ignorePaths replaces defaults",
+      "options": {
+        "target": "src/**/*.tsx",
+        "ignorePaths": ["generated/**"]
+      },
+      "result": {
+        "status": "FAIL",
+        "filesChecked": 2,
+        "catalogsChecked": 2,
+        "diagnostics": [
+          {
+            "code": "missing-translation-key",
+            "key": "dist.missing"
+          }
+        ],
+        "absentDiagnostics": [
+          {
+            "key": "generated.missing"
+          }
+        ]
+      }
+    }
+  ]
+}

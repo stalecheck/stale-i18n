@@ -72,7 +72,10 @@ pnpm stale-i18n formatjs ./src \
 ## Options
 
 - `--catalog <pattern>`: required. Can be passed more than once.
-- `--ignore <pattern>`: source file or directory pattern to skip. Can be passed more than once.
+- `--ignore-paths <pattern>`: Node.js glob pattern for source files or directories to skip.
+  Can be passed more than once, for example `generated/**` or `**/*.test.ts`.
+  Passing this option replaces the default ignored paths: `node_modules`, `dist`,
+  and `coverage`.
 - `--rule <code=level>`: override a rule with `off`, `warning`, or `error`.
 - `--format text|json`: output format. Defaults to `text`.
 

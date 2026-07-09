@@ -48,8 +48,8 @@ const result = new I18nextChecker({
 
 ```ts
 type I18nextCheckOptions = {
-  target?: string;
-  ignore?: string[];
+  target?: string | string[];
+  ignorePaths?: string[];
   rules?: Partial<Record<RuleCode, "off" | "warning" | "error">>;
   catalogs: string | string[] | CatalogConfigI18n | CatalogConfigI18n[];
   mode?: "jsx";
@@ -59,8 +59,11 @@ type I18nextCheckOptions = {
 };
 ```
 
-- `target`: source file or directory to scan. Defaults to the current working area used
-  by the checker.
+- `target`: source file, directory, Node.js glob, or array mixing them. Defaults to
+  the current working area used by the checker.
+- `ignorePaths`: Node.js glob patterns for source paths to skip, for example
+  `["generated/**", "**/*.test.ts"]`. When omitted, `node_modules`, `dist`, and
+  `coverage` are ignored by default. When provided, this list replaces those defaults.
 - `catalogs`: catalog paths, resource objects, or both.
 - `mode`: currently `jsx`.
 - `defaultNamespace`: namespace used for unqualified `t("key")` calls.

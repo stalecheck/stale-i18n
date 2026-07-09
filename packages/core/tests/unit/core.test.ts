@@ -7,6 +7,8 @@ import {
   createResult,
   createStaticStringContext,
   discoverSourceFiles,
+  formatSourceTarget,
+  sourceTargetExists,
   getRuleLevel,
   identifierName,
   locationFromIndex,
@@ -168,24 +170,165 @@ describe("core result helpers", () => {
     expect(resolveStaticStrings(enumReference, context)).toEqual(["title"]);
   });
 
-  it("discovers source files from directories, files, and ignore patterns", () => {
+  function sourceDiscoveryFixture() {
     const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-files-"));
     mkdirSync(path.join(dir, "src"));
     mkdirSync(path.join(dir, "src", "nested"));
+    mkdirSync(path.join(dir, "src", "generated"));
+    mkdirSync(path.join(dir, "src", "dist"));
+    mkdirSync(path.join(dir, "src", "coverage"));
+    mkdirSync(path.join(dir, "src", "node_modules", "pkg"), { recursive: true });
     writeFileSync(path.join(dir, "src", "app.tsx"), "export const app = 1;");
     writeFileSync(path.join(dir, "src", "nested", "helper.ts"), "export const helper = 1;");
+    writeFileSync(path.join(dir, "src", "generated", "messages.ts"), "export const generated = 1;");
+    writeFileSync(path.join(dir, "src", "nested", "view.tsx"), "export const view = 1;");
+    writeFileSync(path.join(dir, "src", "dist", "bundle.ts"), "export const bundle = 1;");
+    writeFileSync(path.join(dir, "src", "coverage", "report.ts"), "export const report = 1;");
+    writeFileSync(
+      path.join(dir, "src", "node_modules", "pkg", "index.ts"),
+      "export const pkg = 1;"
+    );
     writeFileSync(path.join(dir, "src", "readme.md"), "# docs");
+    return dir;
+  }
+
+  it("discovers source files from a directory or a single source file", () => {
+    const dir = sourceDiscoveryFixture();
 
     expect(discoverSourceFiles(path.join(dir, "src"))).toEqual([
       path.join(dir, "src", "app.tsx"),
-      path.join(dir, "src", "nested", "helper.ts")
+      path.join(dir, "src", "generated", "messages.ts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "nested", "view.tsx")
     ]);
     expect(discoverSourceFiles(path.join(dir, "src", "app.tsx"))).toEqual([
       path.join(dir, "src", "app.tsx")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src"), ["nested"])).toEqual([
-      path.join(dir, "src", "app.tsx")
+    expect(discoverSourceFiles(path.join(dir, "src", "readme.md"))).toEqual([]);
+  });
+
+  it("discovers source files from target arrays and removes duplicates", () => {
+    const dir = sourceDiscoveryFixture();
+
+    expect(
+      discoverSourceFiles([
+        path.join(dir, "src", "app.tsx"),
+        path.join(dir, "src", "nested"),
+        path.join(dir, "src", "nested", "helper.ts")
+      ])
+    ).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "nested", "view.tsx")
     ]);
+  });
+
+  it("discovers source files from target glob patterns", () => {
+    const dir = sourceDiscoveryFixture();
+
+    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.tsx"))).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "nested", "view.tsx")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.vue"))).toEqual([]);
+  });
+
+  it("applies ignorePaths globs to directory, file, and glob targets", () => {
+    const dir = sourceDiscoveryFixture();
+
+    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), ["generated/**"])).toEqual([
+      path.join(dir, "src", "coverage", "report.ts"),
+      path.join(dir, "src", "dist", "bundle.ts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "node_modules", "pkg", "index.ts")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src"), ["nested/**"])).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "coverage", "report.ts"),
+      path.join(dir, "src", "dist", "bundle.ts"),
+      path.join(dir, "src", "generated", "messages.ts"),
+      path.join(dir, "src", "node_modules", "pkg", "index.ts")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src"), ["generated"])).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "coverage", "report.ts"),
+      path.join(dir, "src", "dist", "bundle.ts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "nested", "view.tsx"),
+      path.join(dir, "src", "node_modules", "pkg", "index.ts")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src"), ["generated/**"])).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "coverage", "report.ts"),
+      path.join(dir, "src", "dist", "bundle.ts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "nested", "view.tsx"),
+      path.join(dir, "src", "node_modules", "pkg", "index.ts")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src"), ["**/messages.ts"])).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "coverage", "report.ts"),
+      path.join(dir, "src", "dist", "bundle.ts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "nested", "view.tsx"),
+      path.join(dir, "src", "node_modules", "pkg", "index.ts")
+    ]);
+    expect(
+      discoverSourceFiles(path.join(dir, "src", "generated", "messages.ts"), ["messages.ts"])
+    ).toEqual([]);
+    expect(
+      discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), [
+        path.join(dir, "src", "nested", "helper.ts")
+      ])
+    ).toEqual([
+      path.join(dir, "src", "coverage", "report.ts"),
+      path.join(dir, "src", "dist", "bundle.ts"),
+      path.join(dir, "src", "generated", "messages.ts"),
+      path.join(dir, "src", "node_modules", "pkg", "index.ts")
+    ]);
+  });
+
+  it("uses default ignore paths only when ignorePaths is omitted", () => {
+    const dir = sourceDiscoveryFixture();
+
+    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.ts"))).toEqual([
+      path.join(dir, "src", "generated", "messages.ts"),
+      path.join(dir, "src", "nested", "helper.ts")
+    ]);
+    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), [])).toEqual([
+      path.join(dir, "src", "coverage", "report.ts"),
+      path.join(dir, "src", "dist", "bundle.ts"),
+      path.join(dir, "src", "generated", "messages.ts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "node_modules", "pkg", "index.ts")
+    ]);
+  });
+
+  it("reports source target existence for literals, globs, and arrays", () => {
+    const dir = sourceDiscoveryFixture();
+
+    expect(sourceTargetExists(path.join(dir, "src"))).toBe(true);
+    expect(sourceTargetExists(path.join(dir, "src", "app.tsx"))).toBe(true);
+    expect(sourceTargetExists(path.join(dir, "missing-src"))).toBe(false);
+    expect(sourceTargetExists(path.join(dir, "src", "**/*.tsx"))).toBe(true);
+    expect(sourceTargetExists(path.join(dir, "src", "**/*.vue"))).toBe(false);
+    expect(
+      sourceTargetExists([path.join(dir, "src", "missing"), path.join(dir, "src", "**/*.tsx")])
+    ).toBe(true);
+  });
+
+  it("formats single and multiple source targets for diagnostics", () => {
+    const dir = sourceDiscoveryFixture();
+
+    expect(formatSourceTarget(path.join(dir, "src"))).toBe(path.join(dir, "src"));
+    expect(formatSourceTarget([path.join(dir, "src"), path.join(dir, "missing-src")])).toBe(
+      `${path.join(dir, "src")}, ${path.join(dir, "missing-src")}`
+    );
+  });
+
+  it("returns no source files for missing literal targets", () => {
+    const dir = sourceDiscoveryFixture();
+
     expect(discoverSourceFiles(path.join(dir, "missing-src"))).toEqual([]);
   });
 });

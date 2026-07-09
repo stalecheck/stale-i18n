@@ -76,8 +76,12 @@ Ignore generated or vendor source files:
 ```sh
 pnpm stale-i18n formatjs ./src \
   --catalog ./locales/{locale}.json \
-  --ignore ./src/generated
+  --ignore-paths "generated/**" \
+  --ignore-paths "**/*.test.ts"
 ```
+
+`--ignore-paths` accepts Node.js glob patterns matched against source paths. Passing
+it replaces the default ignored paths: `node_modules`, `dist`, and `coverage`.
 
 Exit codes:
 
@@ -91,8 +95,9 @@ Exit codes:
 import { I18nextChecker } from "@stale-i18n/i18next";
 
 const checker = new I18nextChecker({
-  target: "src",
+  target: ["src/**/*.ts", "src/**/*.tsx"],
   catalogs: "locales/{locale}/{namespace}.json",
+  ignorePaths: ["generated/**", "**/*.test.ts"],
   mode: "jsx",
   defaultNamespace: "common"
 });
@@ -129,6 +134,10 @@ new I18nextChecker({
   defaultNamespace: "translation"
 });
 ```
+
+`target` accepts a path, a Node.js glob pattern, or an array mixing both.
+`ignorePaths` uses the same glob syntax. If omitted, `node_modules`, `dist`, and
+`coverage` are ignored by default; if provided, `ignorePaths` replaces those defaults.
 
 For generated or custom catalogs, pass `CatalogConfigI18n` directly:
 

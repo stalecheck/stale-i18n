@@ -27,7 +27,7 @@ type FormatjsCommandOptions = CommonCommandOptions;
 
 type CommonCommandOptions = {
   catalog?: string[];
-  ignore?: string[];
+  ignorePaths?: string[];
   rule?: RuleOverrides;
   format?: CliFormat;
 };
@@ -63,6 +63,7 @@ const RULE_LEVEL_LIST_FORMATTER = new Intl.ListFormat("en", {
 
 const PROHIBITED_OPTIONS = new Set([
   "--library",
+  "--ignore",
   "--ignored-keys",
   "--custom-regexp-to-find-keys",
   "--deep-search"
@@ -148,7 +149,7 @@ function configureI18nextCommand(
   setResult: (result: CliRunResult) => void
 ): void {
   command
-    .argument("<target>", "Source file or directory to scan.")
+    .argument("<target>", "Source file, directory, or glob to scan.")
     .addOption(catalogOption())
     .addOption(ignoreOption())
     .addOption(ruleOption())
@@ -161,7 +162,7 @@ function configureI18nextCommand(
       const checkOptions: I18nextCheckOptions = {
         target,
         catalogs: requiredCatalogs(options),
-        ...(ignoredPaths(options).length === 0 ? {} : { ignore: ignoredPaths(options) }),
+        ...(ignorePaths(options).length === 0 ? {} : { ignorePaths: ignorePaths(options) }),
         ...(options.mode === undefined ? {} : { mode: options.mode }),
         ...(options.defaultNamespace === undefined
           ? {}
@@ -179,7 +180,7 @@ function configureFormatjsCommand(
   setResult: (result: CliRunResult) => void
 ): void {
   command
-    .argument("<target>", "Source file or directory to scan.")
+    .argument("<target>", "Source file, directory, or glob to scan.")
     .addOption(catalogOption())
     .addOption(ignoreOption())
     .addOption(ruleOption())
@@ -188,7 +189,7 @@ function configureFormatjsCommand(
       const checkOptions: FormatjsCheckOptions = {
         target,
         catalogs: requiredCatalogs(options),
-        ...(ignoredPaths(options).length === 0 ? {} : { ignore: ignoredPaths(options) }),
+        ...(ignorePaths(options).length === 0 ? {} : { ignorePaths: ignorePaths(options) }),
         ...(Object.keys(rules(options)).length === 0 ? {} : { rules: rules(options) })
       };
 
@@ -213,7 +214,10 @@ function catalogOption(): Option {
 }
 
 function ignoreOption(): Option {
-  return new Option("--ignore <pattern>", "Source file or directory pattern to skip. Repeatable.")
+  return new Option(
+    "--ignore-paths <pattern>",
+    "Source file or directory glob to skip. Repeatable."
+  )
     .argParser(collectValues)
     .default([]);
 }
@@ -246,8 +250,8 @@ function requiredCatalogs(options: CommonCommandOptions): string[] {
   return options.catalog ?? [];
 }
 
-function ignoredPaths(options: CommonCommandOptions): string[] {
-  return options.ignore ?? [];
+function ignorePaths(options: CommonCommandOptions): string[] {
+  return options.ignorePaths ?? [];
 }
 
 function rules(options: CommonCommandOptions): RuleOverrides {

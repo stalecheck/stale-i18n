@@ -134,6 +134,13 @@ export interface TranslationChecker<TOptions extends BaseCheckOptions = BaseChec
 }
 ```
 
+`BaseCheckOptions.target` accepts a source file, directory, Node.js glob pattern, or
+an array mixing those forms.
+
+`BaseCheckOptions.ignorePaths` accepts Node.js glob patterns for source paths. When
+omitted, `node_modules`, `dist`, and `coverage` are ignored by default. When
+provided, `ignorePaths` replaces those defaults, including when `target` is a glob.
+
 `CheckResult.status` is `FAIL` when at least one diagnostic has
 `severity: "error"`. Warnings alone keep the status as `SUCCESS`.
 
@@ -277,7 +284,9 @@ stale-i18n formatjs <target>
 Common options:
 
 - `--catalog <pattern>`;
-- `--ignore <pattern>`;
+- `<target>`: source file, directory, or Node.js glob pattern;
+- `--ignore-paths <pattern>`: Node.js glob pattern for source paths to skip,
+  replacing default ignored paths when provided;
 - `--mode jsx`;
 - `--rule code=level`;
 - `--format text|json`.

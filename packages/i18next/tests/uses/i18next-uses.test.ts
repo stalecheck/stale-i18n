@@ -118,8 +118,16 @@ function buildOptions(caseDir: string, options: RawJsonOptions = {}): I18nextChe
   };
 }
 
-function resolvePathOption(caseDir: string, value: string | undefined) {
-  if (value === undefined || path.isAbsolute(value)) {
+function resolvePathOption(caseDir: string, value: I18nextCheckOptions["target"] | undefined) {
+  if (value === undefined) {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => (path.isAbsolute(entry) ? entry : path.join(caseDir, entry)));
+  }
+
+  if (path.isAbsolute(value)) {
     return value;
   }
 

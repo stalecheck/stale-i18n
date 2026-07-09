@@ -10,7 +10,7 @@ export {
 } from "./ast.js";
 export { createConfigurationDiagnostic, createDiagnostic, createResult } from "./diagnostics.js";
 export type { CreateConfigurationDiagnosticInput, CreateDiagnosticInput } from "./diagnostics.js";
-export { discoverSourceFiles } from "./files.js";
+export { discoverSourceFiles, formatSourceTarget, sourceTargetExists } from "./files.js";
 export { parseSource } from "./parser.js";
 export type { ParseSourceResult } from "./parser.js";
 export { getRuleLevel, RULE_DEFINITIONS } from "./rules.js";
@@ -35,6 +35,7 @@ export type {
   MessageId,
   RuleCode,
   RuleOverrides,
+  SourceTarget,
   SourceLocation,
   SourceUsage,
   TranslationChecker

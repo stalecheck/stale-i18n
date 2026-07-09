@@ -1,0 +1,11 @@
+{
+  "extra": {
+    "title": "Extra"
+  },
+  "home": {
+    "title": "Home"
+  },
+  "panel": {
+    "title": "Panel"
+  }
+}

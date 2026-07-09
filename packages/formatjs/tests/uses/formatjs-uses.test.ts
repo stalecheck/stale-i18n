@@ -107,8 +107,8 @@ function resolveOptions(
   options: Partial<FormatjsCheckOptions>
 ): Partial<FormatjsCheckOptions> {
   const resolved: Partial<FormatjsCheckOptions> = { ...options };
-  if (options.target && !path.isAbsolute(options.target)) {
-    resolved.target = path.join(caseDir, options.target);
+  if (options.target !== undefined) {
+    resolved.target = resolveTargetOption(caseDir, options.target);
   }
   if (typeof options.catalogs === "string" && !path.isAbsolute(options.catalogs)) {
     resolved.catalogs = path.join(caseDir, options.catalogs);
@@ -119,6 +119,17 @@ function resolveOptions(
     );
   }
   return resolved;
+}
+
+function resolveTargetOption(caseDir: string, target: NonNullable<FormatjsCheckOptions["target"]>) {
+  if (Array.isArray(target)) {
+    return target.map((entry) => resolvePathOption(caseDir, entry));
+  }
+  return resolvePathOption(caseDir, target);
+}
+
+function resolvePathOption(caseDir: string, value: string) {
+  return path.isAbsolute(value) ? value : path.join(caseDir, value);
 }
 
 function expectResult(result: CheckResult, expected: ResultExpectation = {}) {

@@ -1,0 +1,11 @@
+{
+  "options": {
+    "target": ["src/*.tsx", "src/admin/**/*.tsx"]
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 2,
+    "catalogsChecked": 4,
+    "diagnostics": []
+  }
+}

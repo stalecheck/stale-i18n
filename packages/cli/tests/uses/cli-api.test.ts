@@ -95,6 +95,7 @@ describe("CLI", () => {
 
   it("ignores matching source files", async () => {
     const dir = fixture();
+    mkdirSync(path.join(dir, "src", "nested"), { recursive: true });
     writeFileSync(
       path.join(dir, "src", "Ignored.tsx"),
       [
@@ -105,21 +106,31 @@ describe("CLI", () => {
         "}"
       ].join("\n")
     );
+    writeFileSync(
+      path.join(dir, "src", "nested", "Nested.tsx"),
+      [
+        'import { useTranslation } from "react-i18next";',
+        "export function Nested() {",
+        "  const { t } = useTranslation();",
+        '  return <span>{t("save")}</span>;',
+        "}"
+      ].join("\n")
+    );
 
     const result = await runCli([
       "i18next",
-      path.join(dir, "src"),
+      path.join(dir, "src", "**", "*.tsx"),
       "--catalog",
       path.join(dir, "locales", "{locale}", "{namespace}.json"),
-      "--ignore",
-      path.join(dir, "src", "Ignored.tsx"),
+      "--ignore-paths",
+      "Ignored.tsx",
       "--format",
       "json"
     ]);
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual(
-      expect.objectContaining({ status: "SUCCESS", filesChecked: 1, diagnostics: [] })
+      expect.objectContaining({ status: "SUCCESS", filesChecked: 2, diagnostics: [] })
     );
   });
 
@@ -172,6 +183,9 @@ describe("CLI", () => {
     await expect(runCli(["i18next", "src", "--deep-search"])).resolves.toEqual(
       expect.objectContaining({ exitCode: 2 })
     );
+    await expect(runCli(["i18next", "src", "--ignore", "**/*.test.ts"])).resolves.toEqual(
+      expect.objectContaining({ exitCode: 2 })
+    );
     await expect(runCli(["i18next", "src", "--mode", "vue"])).resolves.toEqual(
       expect.objectContaining({ exitCode: 2 })
     );
@@ -222,6 +236,34 @@ describe("CLI", () => {
     );
   });
 
+  it("returns exit code 2 and JSON diagnostics for a source target glob with no matches", async () => {
+    const dir = fixture();
+    const missingTarget = path.join(dir, "src", "**", "*.vue");
+
+    const result = await runCli([
+      "i18next",
+      missingTarget,
+      "--catalog",
+      path.join(dir, "locales", "{locale}", "{namespace}.json"),
+      "--format",
+      "json"
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.objectContaining({
+        status: "FAIL",
+        filesChecked: 0,
+        diagnostics: [
+          expect.objectContaining({
+            code: "source-target-not-found",
+            severity: "error"
+          })
+        ]
+      })
+    );
+  });
+
   it("prints Commander help for documented options", async () => {
     await expect(runCli(["i18next", "--help"])).resolves.toEqual(
       expect.objectContaining({
@@ -233,6 +275,7 @@ describe("CLI", () => {
     const result = await runCli(["formatjs", "--help"]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("--catalog <pattern>");
+    expect(result.stdout).toContain("--ignore-paths <pattern>");
     expect(result.stdout).toContain("--format <format>");
   });
 });

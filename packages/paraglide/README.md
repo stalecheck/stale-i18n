@@ -34,16 +34,18 @@ const result = await new ParaglideChecker({
 
 ```ts
 type ParaglideCheckOptions = {
-  target?: string;
-  ignore?: string[];
+  target?: string | string[];
+  ignorePaths?: string[];
   rules?: Partial<Record<RuleCode, "off" | "warning" | "error">>;
   catalogs: string | string[];
 };
 ```
 
-- `target`: source file or directory to scan.
+- `target`: source file, directory, Node.js glob, or array mixing them.
 - `catalogs`: one or more flat JSON catalog patterns.
-- `ignore`: source files to skip.
+- `ignorePaths`: Node.js glob patterns for source paths to skip. When omitted,
+  `node_modules`, `dist`, and `coverage` are ignored by default. When provided,
+  this list replaces those defaults.
 - `rules`: override rule levels.
 
 ## Planned Source Patterns

@@ -54,9 +54,11 @@ export type CheckResult = {
 
 export type RuleOverrides = Partial<Record<RuleCode, RULE_LEVEL>>;
 
+export type SourceTarget = string | string[];
+
 export type BaseCheckOptions = {
-  target?: string;
-  ignore?: string[];
+  target?: SourceTarget;
+  ignorePaths?: string[];
   rules?: RuleOverrides;
 };
 

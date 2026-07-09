@@ -4,14 +4,15 @@ import {
   createResult,
   parseSource,
   discoverSourceFiles,
+  formatSourceTarget,
+  sourceTargetExists,
   type CheckResult,
   type Diagnostic,
   type RuleCode,
   type SourceUsage,
   type TranslationChecker
 } from "@stale-i18n/core";
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
+import { readFileSync } from "node:fs";
 import { readCatalogs } from "./catalogs.js";
 import { compareUsages } from "./comparison.js";
 import { analyzeProgram } from "./source-analysis.js";
@@ -32,17 +33,16 @@ export class FormatjsChecker implements TranslationChecker<FormatjsCheckOptions>
   checkSync(options?: Partial<FormatjsCheckOptions>): CheckResult {
     const merged = { ...this.options, ...options };
     const target = merged.target ?? process.cwd();
-    const absoluteTarget = path.resolve(target);
-    const targetExists = existsSync(absoluteTarget);
-    const sourceFiles = discoverSourceFiles(target, merged.ignore ?? []);
+    const targetExists = sourceTargetExists(target);
+    const sourceFiles = discoverSourceFiles(target, merged.ignorePaths);
     const catalogResult = readCatalogs(merged);
     const diagnostics: Array<Diagnostic | null> = [
       targetExists
         ? null
         : createConfigurationDiagnostic({
             code: "source-target-not-found",
-            message: `Source target was not found: ${absoluteTarget}`,
-            filePath: absoluteTarget,
+            message: `Source target was not found: ${formatSourceTarget(target)}`,
+            filePath: formatSourceTarget(target),
             line: 1,
             column: 1
           }),

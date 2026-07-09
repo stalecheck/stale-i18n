@@ -1,0 +1,58 @@
+{
+  "options": {
+    "target": "src/**/*.tsx"
+  },
+  "variants": [
+    {
+      "name": "single glob target",
+      "options": {
+        "target": "src/**/*.tsx"
+      },
+      "result": {
+        "status": "FAIL",
+        "filesChecked": 2,
+        "catalogsChecked": 2,
+        "diagnostics": [
+          {
+            "code": "unused-translation-key",
+            "key": "extra.title"
+          }
+        ]
+      }
+    },
+    {
+      "name": "array glob target",
+      "options": {
+        "target": ["src/*.tsx", "src/nested/**/*.tsx"]
+      },
+      "result": {
+        "status": "FAIL",
+        "filesChecked": 2,
+        "catalogsChecked": 2,
+        "diagnostics": [
+          {
+            "code": "unused-translation-key",
+            "key": "extra.title"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mixed file and glob target",
+      "options": {
+        "target": ["src/app.tsx", "src/nested/**/*.ts"]
+      },
+      "result": {
+        "status": "FAIL",
+        "filesChecked": 2,
+        "catalogsChecked": 2,
+        "diagnostics": [
+          {
+            "code": "unused-translation-key",
+            "key": "panel.title"
+          }
+        ]
+      }
+    }
+  ]
+}
