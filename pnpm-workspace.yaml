@@ -6,7 +6,7 @@ packages:
   - packages/cli
 
 catalog:
-  oxc-parser: ^0.134.0
+  oxc-parser: ^0.138.0
   oxc-resolver: ^11.20.0
 
 savePrefix: ''
