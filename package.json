@@ -26,7 +26,7 @@
     "typecheck": "pnpm -r typecheck"
   },
   "devDependencies": {
-    "@types/node": "24.12.4",
+    "@types/node": "26.1.0",
     "@vitest/coverage-v8": "4.1.7",
     "commit-and-tag-version": "12.7.3",
     "oxfmt": "0.53.0",
