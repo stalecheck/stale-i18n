@@ -54,6 +54,7 @@ jobs:
           import { readFileSync } from "node:fs";
 
           const expectedVersion = process.argv[2];
+          const expectedRepositoryUrl = "https://github.com/stalecheck/stale-i18n";
           const publicPackages = [
             "packages/core/package.json",
             "packages/i18next/package.json",
@@ -72,10 +73,16 @@ jobs:
           if (root.version !== expectedVersion) {
             failures.push(`package.json has version ${root.version}, expected ${expectedVersion}`);
           }
+          if (root.repository?.url !== expectedRepositoryUrl) {
+            failures.push(`package.json repository.url must be ${expectedRepositoryUrl}`);
+          }
 
           for (const { filePath, manifest } of manifests) {
             if (manifest.version !== expectedVersion) {
               failures.push(`${filePath} has version ${manifest.version}, expected ${expectedVersion}`);
+            }
+            if (manifest.repository?.url !== expectedRepositoryUrl) {
+              failures.push(`${filePath} repository.url must be ${expectedRepositoryUrl}`);
             }
             if (!manifest.name.startsWith("@stale-i18n/")) {
               failures.push(`${filePath} is outside the @stale-i18n npm scope`);

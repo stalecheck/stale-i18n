@@ -3,6 +3,11 @@
   "version": "0.1.0-beta.0",
   "description": "i18next integration for stale i18n checks.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stalecheck/stale-i18n",
+    "directory": "packages/i18next"
+  },
   "files": [
     "dist"
   ],

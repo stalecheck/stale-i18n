@@ -4,6 +4,10 @@
   "private": true,
   "description": "Monorepo for stale i18n checking tools.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stalecheck/stale-i18n"
+  },
   "type": "module",
   "packageManager": "pnpm@11.10.0",
   "workspaces": [
