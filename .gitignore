@@ -1,5 +1,7 @@
 node_modules
 dist
+!packages/i18next/tests/uses/target-glob-ignore-paths-variants/src/dist/
+!packages/i18next/tests/uses/target-glob-ignore-paths-variants/src/dist/ignored-by-default.tsx
 coverage
 .vitest
 .vite
