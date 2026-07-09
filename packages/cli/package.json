@@ -32,7 +32,8 @@
   "dependencies": {
     "@stale-i18n/core": "workspace:*",
     "@stale-i18n/formatjs": "workspace:*",
-    "@stale-i18n/i18next": "workspace:*"
+    "@stale-i18n/i18next": "workspace:*",
+    "commander": "15.0.0"
   },
   "engines": {
     "node": ">=22.12.0"

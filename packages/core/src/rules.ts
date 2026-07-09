@@ -1,8 +1,8 @@
-import type { RuleCode, RuleLevel, RuleOverrides } from "./types.js";
+import type { RULE_LEVEL, RuleCode, RuleOverrides } from "./types.js";
 
 export type RuleDefinition = {
   code: RuleCode;
-  defaultLevel: RuleLevel;
+  defaultLevel: RULE_LEVEL;
   description: string;
 };
 
@@ -57,7 +57,7 @@ export const RULE_DEFINITIONS = {
 export function getRuleLevel(
   code: RuleCode,
   rules: RuleOverrides | undefined,
-  defaultLevel: RuleLevel = RULE_DEFINITIONS[code].defaultLevel
-): RuleLevel {
+  defaultLevel: RULE_LEVEL = RULE_DEFINITIONS[code].defaultLevel
+): RULE_LEVEL {
   return rules?.[code] ?? defaultLevel;
 }

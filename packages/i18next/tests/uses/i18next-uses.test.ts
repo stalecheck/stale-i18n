@@ -4,10 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   RULE_DEFINITIONS,
+  type RULE_LEVEL,
   type CheckResult,
   type Diagnostic,
   type RuleCode,
-  type RuleLevel,
   type RuleOverrides
 } from "@stale-i18n/core";
 import {
@@ -223,7 +223,7 @@ async function buildUseCaseOptions(
 function checkRuleLevel(
   caseDir: string,
   code: RuleCode,
-  level: RuleLevel,
+  level: RULE_LEVEL,
   options: RawJsonOptions = {}
 ) {
   const rules: RuleOverrides = {

@@ -160,6 +160,12 @@ describe("CLI", () => {
   });
 
   it("returns exit code 2 for invalid arguments and prohibited options", async () => {
+    await expect(runCli([])).resolves.toEqual(
+      expect.objectContaining({
+        exitCode: 2,
+        stderr: expect.stringContaining("Expected a subcommand")
+      })
+    );
     await expect(runCli(["i18next", "src", "--library", "react-i18next"])).resolves.toEqual(
       expect.objectContaining({ exitCode: 2 })
     );
@@ -175,5 +181,19 @@ describe("CLI", () => {
     await expect(
       runCli(["paraglide", "src", "--catalog", "messages/{locale}.json"])
     ).resolves.toEqual(expect.objectContaining({ exitCode: 2 }));
+  });
+
+  it("prints Commander help for documented options", async () => {
+    await expect(runCli(["i18next", "--help"])).resolves.toEqual(
+      expect.objectContaining({
+        exitCode: 0,
+        stdout: expect.stringContaining("Check react-i18next source files")
+      })
+    );
+
+    const result = await runCli(["formatjs", "--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("--catalog <pattern>");
+    expect(result.stdout).toContain("--format <format>");
   });
 });

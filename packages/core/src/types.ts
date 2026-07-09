@@ -1,5 +1,10 @@
 export type CheckStatus = "SUCCESS" | "FAIL";
-export type RuleLevel = "off" | "warning" | "error";
+export const RULE_LEVEL = {
+  off: true,
+  warning: true,
+  error: true
+} as const;
+export type RULE_LEVEL = keyof typeof RULE_LEVEL;
 
 export type RuleCode =
   | "missing-translation-key"
@@ -26,7 +31,7 @@ export type AnyNode = Record<string, unknown> & {
 
 export type Diagnostic = {
   code: RuleCode;
-  severity: Exclude<RuleLevel, "off">;
+  severity: Exclude<RULE_LEVEL, "off">;
   message: string;
   filePath: string;
   line: number;
@@ -43,7 +48,7 @@ export type CheckResult = {
   catalogsChecked: number;
 };
 
-export type RuleOverrides = Partial<Record<RuleCode, RuleLevel>>;
+export type RuleOverrides = Partial<Record<RuleCode, RULE_LEVEL>>;
 
 export type BaseCheckOptions = {
   target?: string;

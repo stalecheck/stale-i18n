@@ -23,6 +23,7 @@ export {
   resolveStaticStrings
 } from "./static-strings.js";
 export type { StaticStringContext } from "./static-strings.js";
+export { RULE_LEVEL } from "./types.js";
 export type {
   AnyNode,
   BaseCheckOptions,
@@ -31,7 +32,6 @@ export type {
   Diagnostic,
   MessageId,
   RuleCode,
-  RuleLevel,
   RuleOverrides,
   SourceLocation,
   SourceUsage,

@@ -4,10 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   RULE_DEFINITIONS,
+  type RULE_LEVEL,
   type CheckResult,
   type Diagnostic,
   type RuleCode,
-  type RuleLevel,
   type RuleOverrides
 } from "@stale-i18n/core";
 import { ParaglideChecker, type ParaglideCheckOptions } from "@stale-i18n/paraglide";
@@ -83,7 +83,7 @@ async function checkUseCase(useCase: UseCase) {
 function checkRuleLevel(
   caseDir: string,
   code: RuleCode,
-  level: RuleLevel,
+  level: RULE_LEVEL,
   options: Partial<ParaglideCheckOptions> = {}
 ) {
   const rules: RuleOverrides = {
