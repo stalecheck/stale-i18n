@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.0-beta.2](https://github.com/stalecheck/stale-i18n/compare/v0.1.0-beta.1...v0.1.0-beta.2) (2026-07-09)
+
+
+### Features
+
+* file source not found error ([9e704ba](https://github.com/stalecheck/stale-i18n/commit/9e704ba075af87c607ac4dc64acaff660672e17f))
+* support glob ignore and target ([e2340a3](https://github.com/stalecheck/stale-i18n/commit/e2340a30cab93c29967fcc5ebc7dc23fa4a2953f))
+
+
+### Bug Fixes
+
+* ignored undeclared namespaces ([a8b0eb7](https://github.com/stalecheck/stale-i18n/commit/a8b0eb7dd710b85f5c3a13751f2af8691ca8c057))
+* shadowed functions ([5a423b2](https://github.com/stalecheck/stale-i18n/commit/5a423b2d5c8133600be91f39877ef6d56621133e))
+
 ## [0.1.0-beta.1](https://github.com/stalecheck/stale-i18n/compare/v0.1.0-beta.0...v0.1.0-beta.1) (2026-07-09)
 
 
