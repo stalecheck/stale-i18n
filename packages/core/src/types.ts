@@ -17,6 +17,10 @@ export type RuleCode =
   | "catalog-parse-error"
   | "catalog-file-not-found";
 
+export type ConfigurationDiagnosticCode = "source-target-not-found";
+
+export type DiagnosticCode = RuleCode | ConfigurationDiagnosticCode;
+
 export type SourceLocation = {
   index: number;
   line: number;
@@ -30,7 +34,7 @@ export type AnyNode = Record<string, unknown> & {
 };
 
 export type Diagnostic = {
-  code: RuleCode;
+  code: DiagnosticCode;
   severity: Exclude<RULE_LEVEL, "off">;
   message: string;
   filePath: string;

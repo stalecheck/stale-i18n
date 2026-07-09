@@ -18,10 +18,17 @@ export function invalid(message: string): CliRunResult {
 
 export function formatRunResult(result: CheckResult, format: CliFormat): CliRunResult {
   return {
-    exitCode: result.status === "FAIL" ? 1 : 0,
+    exitCode: exitCodeForResult(result),
     stdout: format === "json" ? `${JSON.stringify(result, null, 2)}\n` : formatText(result),
     stderr: ""
   };
+}
+
+function exitCodeForResult(result: CheckResult): 0 | 1 | 2 {
+  if (result.diagnostics.some((diagnostic) => diagnostic.code === "source-target-not-found")) {
+    return 2;
+  }
+  return result.status === "FAIL" ? 1 : 0;
 }
 
 function formatText(result: CheckResult): string {

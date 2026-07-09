@@ -8,8 +8,8 @@ export {
   stringLiteral,
   walk
 } from "./ast.js";
-export { createDiagnostic, createResult } from "./diagnostics.js";
-export type { CreateDiagnosticInput } from "./diagnostics.js";
+export { createConfigurationDiagnostic, createDiagnostic, createResult } from "./diagnostics.js";
+export type { CreateConfigurationDiagnosticInput, CreateDiagnosticInput } from "./diagnostics.js";
 export { discoverSourceFiles } from "./files.js";
 export { parseSource } from "./parser.js";
 export type { ParseSourceResult } from "./parser.js";
@@ -29,7 +29,9 @@ export type {
   BaseCheckOptions,
   CheckResult,
   CheckStatus,
+  ConfigurationDiagnosticCode,
   Diagnostic,
+  DiagnosticCode,
   MessageId,
   RuleCode,
   RuleOverrides,

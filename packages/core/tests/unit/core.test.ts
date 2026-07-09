@@ -186,5 +186,6 @@ describe("core result helpers", () => {
     expect(discoverSourceFiles(path.join(dir, "src"), ["nested"])).toEqual([
       path.join(dir, "src", "app.tsx")
     ]);
+    expect(discoverSourceFiles(path.join(dir, "missing-src"))).toEqual([]);
   });
 });

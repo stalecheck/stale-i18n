@@ -1,5 +1,11 @@
 import { getRuleLevel } from "./rules.js";
-import type { CheckResult, Diagnostic, RuleCode, RuleOverrides } from "./types.js";
+import type {
+  CheckResult,
+  ConfigurationDiagnosticCode,
+  Diagnostic,
+  RuleCode,
+  RuleOverrides
+} from "./types.js";
 
 export type CreateDiagnosticInput = {
   code: RuleCode;
@@ -11,6 +17,14 @@ export type CreateDiagnosticInput = {
   key?: string | undefined;
   locale?: string | undefined;
   catalogPath?: string | undefined;
+};
+
+export type CreateConfigurationDiagnosticInput = {
+  code: ConfigurationDiagnosticCode;
+  message: string;
+  filePath: string;
+  line: number;
+  column: number;
 };
 
 export function createDiagnostic(input: CreateDiagnosticInput): Diagnostic | null {
@@ -29,6 +43,19 @@ export function createDiagnostic(input: CreateDiagnosticInput): Diagnostic | nul
     ...(input.key === undefined ? {} : { key: input.key }),
     ...(input.locale === undefined ? {} : { locale: input.locale }),
     ...(input.catalogPath === undefined ? {} : { catalogPath: input.catalogPath })
+  };
+}
+
+export function createConfigurationDiagnostic(
+  input: CreateConfigurationDiagnosticInput
+): Diagnostic {
+  return {
+    code: input.code,
+    severity: "error",
+    message: input.message,
+    filePath: input.filePath,
+    line: input.line,
+    column: input.column
   };
 }
 

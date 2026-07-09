@@ -181,6 +181,45 @@ describe("CLI", () => {
     await expect(
       runCli(["paraglide", "src", "--catalog", "messages/{locale}.json"])
     ).resolves.toEqual(expect.objectContaining({ exitCode: 2 }));
+    await expect(
+      runCli([
+        "i18next",
+        "src",
+        "--catalog",
+        "locales/{locale}/{namespace}.json",
+        "--rule",
+        "source-target-not-found=off"
+      ])
+    ).resolves.toEqual(expect.objectContaining({ exitCode: 2 }));
+  });
+
+  it("returns exit code 2 and JSON diagnostics for a missing source target", async () => {
+    const dir = fixture();
+    const missingTarget = path.join(dir, "missing-src");
+
+    const result = await runCli([
+      "i18next",
+      missingTarget,
+      "--catalog",
+      path.join(dir, "locales", "{locale}", "{namespace}.json"),
+      "--format",
+      "json"
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.objectContaining({
+        status: "FAIL",
+        filesChecked: 0,
+        diagnostics: [
+          expect.objectContaining({
+            code: "source-target-not-found",
+            severity: "error",
+            filePath: missingTarget
+          })
+        ]
+      })
+    );
   });
 
   it("prints Commander help for documented options", async () => {
