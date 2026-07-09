@@ -1,8 +1,14 @@
 {
   "options": {
     "catalogs": [
-      "document-messages/{locale}/{namespace}.json",
-      "payment-copy/{locale}/{namespace}.json"
+      {
+        "type": "path",
+        "data": "document-messages/{locale}/{namespace}.json"
+      },
+      {
+        "type": "path",
+        "data": "payment-copy/{locale}/{namespace}.json"
+      }
     ]
   },
   "result": {

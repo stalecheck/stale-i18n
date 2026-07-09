@@ -4,6 +4,7 @@ import {
   collectStaticStringBinding,
   collectStaticStringEnum,
   createStaticStringContext,
+  getRuleLevel,
   identifierName,
   jsxName,
   literalValue,
@@ -17,7 +18,7 @@ import {
   type StaticStringContext
 } from "@stale-i18n/core";
 import { jsxAttributes } from "./jsx.js";
-import { rawTextDiagnostic } from "./raw-text.js";
+import { rawUiTextDiagnostic } from "./raw-text.js";
 import type { AnyNode, I18nextCheckOptions, TBinding } from "./types.js";
 
 export function analyzeProgram(
@@ -120,7 +121,7 @@ export function analyzeProgram(
         }
       }
 
-      if (node.type === "JSXElement") {
+      if (isJsxMode(options) && node.type === "JSXElement") {
         const opening = node.openingElement as AnyNode | undefined;
         const name = jsxName(opening?.name as AnyNode | undefined);
         if (name && transNames.has(name)) {
@@ -128,8 +129,8 @@ export function analyzeProgram(
         }
       }
 
-      if (options.rawText?.enabled === true) {
-        const rawDiagnostic = rawTextDiagnostic(node, source, filePath, options);
+      if (isJsxMode(options) && getRuleLevel("raw-ui-text", options.rules) !== "off") {
+        const rawDiagnostic = rawUiTextDiagnostic(node, source, filePath, options);
         if (rawDiagnostic) {
           diagnostics.push(rawDiagnostic);
         }
@@ -140,6 +141,10 @@ export function analyzeProgram(
   });
 
   return { usages, diagnostics };
+}
+
+function isJsxMode(options: I18nextCheckOptions): boolean {
+  return (options.mode ?? "jsx") === "jsx";
 }
 
 function collectTBinding(
@@ -246,15 +251,17 @@ function usageFromTCall(
     ];
   }
 
-  return keys.map((key) => {
+  const variants = keyVariantsFromOptions(secondArg);
+
+  return keys.flatMap((key) => {
     const resolved = resolveKey(key, binding, options, namespaceOverride);
-    return {
-      kind: "resolved",
-      message: { id: resolved.key, namespace: resolved.namespace },
+    return variants.map((variant) => ({
+      kind: "resolved" as const,
+      message: { id: applyKeyVariant(resolved.key, variant), namespace: resolved.namespace },
       filePath,
       location,
-      sourceKind: "call"
-    };
+      sourceKind: "call" as const
+    }));
   });
 }
 
@@ -329,6 +336,43 @@ function namespaceOverrideFromOptions(node: AnyNode | undefined): string | false
     return undefined;
   }
   return stringLiteral(nsProperty.value as AnyNode) ?? false;
+}
+
+type KeyVariant = {
+  context?: string | undefined;
+  pluralSuffix?: string | undefined;
+};
+
+function keyVariantsFromOptions(node: AnyNode | undefined): KeyVariant[] {
+  if (!node || node.type !== "ObjectExpression") {
+    return [{}];
+  }
+
+  const properties = arrayOf<AnyNode>(node.properties);
+  const hasCount = properties.some((property) => identifierName(property.key) === "count");
+  const context = properties
+    .filter((property) => identifierName(property.key) === "context")
+    .map((property) => stringLiteral(property.value as AnyNode))
+    .find((value): value is string => typeof value === "string");
+
+  if (hasCount) {
+    return ["one", "other"].map((plural) => ({
+      ...(context === undefined ? {} : { context }),
+      pluralSuffix: plural
+    }));
+  }
+
+  return [
+    {
+      ...(context === undefined ? {} : { context })
+    }
+  ];
+}
+
+function applyKeyVariant(key: string, variant: KeyVariant) {
+  const contextSuffix = variant.context === undefined ? "" : `_${variant.context}`;
+  const pluralSuffix = variant.pluralSuffix === undefined ? "" : `_${variant.pluralSuffix}`;
+  return `${key}${contextSuffix}${pluralSuffix}`;
 }
 
 function memberExpressionName(

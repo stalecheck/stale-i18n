@@ -230,7 +230,7 @@ Reglas de estructura:
   caso sin codificar expectativas en el propio test.
 - `expected.json` puede declarar:
   - `options`: overrides relativos al directorio del caso (`target`,
-    `catalogs`, `rules`, `rawText`, etc.).
+    `catalogs`, `rules`, etc.).
   - `result`: expectativas de `status`, `filesChecked`, `catalogsChecked` y
     diagnosticos esperados.
   - `api`: `sync` por defecto o `async` para ejecutar `check()` y probar la API
@@ -742,7 +742,7 @@ Los niveles por defecto iniciales son:
 
 - `missing-translation-key`: `error`.
 - `missing-locale-key`: `error`.
-- `unused-translation-key`: `warning`.
+- `unused-translation-key`: `error`.
 - `empty-translation-value`: `error`.
 - `unresolved-dynamic-key`: `error`.
 - `raw-ui-text`: `off`.
@@ -769,12 +769,15 @@ Opciones iniciales:
 ```ts
 export type I18nextCheckOptions = BaseCheckOptions & {
   catalogs: string | string[];
+  mode?: "jsx";
   defaultNamespace?: string;
   keySeparator?: string | false;
   namespaceSeparator?: string | false;
-  rawText?: RawTextOptions;
 };
 ```
+
+`mode` indica el tipo de aplicativo a analizar. El valor por defecto es `jsx`
+y por ahora es el unico valor soportado.
 
 `react-i18next` no debe existir como paquete separado. Es la integracion React
 de i18next y debe vivir dentro de `@stale-i18n/i18next`. El paquete i18next debe
@@ -915,8 +918,69 @@ aplicarse igual que en i18next, sin namespaces.
 
 Los `uses` de FormatJS deben seguir el runner basado en `expected.json` y
 probar cada regla aplicable en `off`, `warning` y `error` desde casos reales.
-`raw-ui-text` queda fuera de FormatJS hasta que `FormatjsCheckOptions`
-incorpore explicitamente `rawText`.
+`raw-ui-text` queda fuera de FormatJS hasta que exista implementacion en su
+analizador.
+
+## Paquete `@stale-i18n/paraglide`
+
+Paraglide JS v2 compila mensajes a funciones ESM tipadas. El checker debe
+analizar el codigo de aplicacion que importa el objeto de mensajes generado y
+compararlo contra los archivos de mensajes fuente.
+
+Clase publica:
+
+```ts
+export class ParaglideChecker
+  implements TranslationChecker<ParaglideCheckOptions>
+```
+
+Opciones iniciales:
+
+```ts
+export type ParaglideCheckOptions = BaseCheckOptions & {
+  catalogs: string | string[];
+};
+```
+
+Patrones MVP:
+
+- `import { m } from "./paraglide/messages.js"; m.greeting()`
+- alias de import: `import { m as messages } from "./paraglide/messages.js";
+  messages.greeting()`
+- llamada con key computada resoluble:
+  `messages[condition ? "save" : "cancel"]()`
+- llamada con key computada dinamica no resoluble reporta
+  `unresolved-dynamic-key`.
+
+Reglas:
+
+- La fuente se identifica por imports cuyo `source` termina en
+  `/paraglide/messages`, `/paraglide/messages.js`, `/paraglide/messages.ts` o
+  `paraglide/messages`.
+- Solo se consideran llamadas a propiedades del binding importado. Leer
+  `m.key` sin llamada no cuenta como uso en el MVP.
+- Si el binding importado queda sombreado por parametros de funciones internas,
+  no debe contarse como uso.
+
+Catalogos MVP:
+
+- JSON plano con forma `{ "message.id": "Message" }`.
+- Rutas con placeholder `{locale}`.
+- Multiples catalogos explicitos con `catalogs: string[]`.
+- JSON invalido emite `catalog-parse-error`.
+- Catalogo inexistente emite `catalog-file-not-found`.
+
+Las reglas base (`missing-translation-key`, `missing-locale-key`,
+`unused-translation-key`, `empty-translation-value`, `unresolved-dynamic-key`,
+`source-parse-error`, `catalog-parse-error`, `catalog-file-not-found`) deben
+aplicarse igual que en FormatJS, sin namespaces.
+
+Quedan fuera del MVP:
+
+- inferir `catalogs` desde `project.inlang/settings.json`;
+- plugins de formatos inlang distintos de JSON plano;
+- validar placeholders o parametros de las funciones generadas;
+- analizar el codigo generado dentro de `./paraglide/messages.js`.
 
 ## CLI
 
@@ -937,6 +1001,7 @@ Fase inicial:
 ```bash
 stale-i18n i18next src \
   --catalog "src/locales/{locale}/{namespace}.json" \
+  --mode jsx \
   --default-namespace translation \
   --rule unused-translation-key=warning
 ```
@@ -945,6 +1010,7 @@ Opciones comunes:
 
 - `--config`
 - `--ignore`
+- `--mode jsx`
 - `--rule code=level`
 - `--format text|json`
 
@@ -970,34 +1036,20 @@ const result = await checker.check();
 
 ## Raw UI text
 
-`raw-ui-text` es opt-in.
+`raw-ui-text` es opt-in, se activa exclusivamente mediante `rules` y por ahora
+solo aplica en `mode: "jsx"`.
 
 Debe detectar:
 
 - `JSXText`: `<button>Save</button>`.
 - Atributos JSX string: `<input placeholder="Search" />`.
-- Strings en expresiones JSX simples: `<span>{"Save"}</span>`.
-- Props configuradas por componente.
-
-Opciones:
-
-```ts
-export type RawTextOptions = {
-  enabled?: boolean;
-  minLength?: number;
-  ignore?: Array<string | RegExp>;
-  attributes?: string[];
-  components?: Record<string, string[]>;
-  ignoreFiles?: string[];
-};
-```
 
 Debe ignorar por defecto:
 
 - strings vacios;
 - strings solo numericos;
 - strings sin letras;
-- tests y stories solo si se configuran en `ignoreFiles`.
+- archivos excluidos por la opcion global `ignore`.
 
 ## TDD obligatorio
 
@@ -1082,6 +1134,21 @@ Debe tener tests para:
 - multiples catalogos explicitos con `catalogs: string[]`.
 - cada regla aplicable de FormatJS en `off`, `warning` y `error`.
 
+### Paraglide
+
+Debe tener tests para:
+
+- `import { m } from "./paraglide/messages.js"; m.key()`.
+- alias `import { m as messages } ...`.
+- key computada resoluble desde expresion estatica.
+- key computada dinamica no resoluble reporta `unresolved-dynamic-key`.
+- key usada pero ausente reporta `missing-translation-key`.
+- key presente en un locale pero ausente en otro reporta `missing-locale-key`.
+- key definida y no usada reporta `unused-translation-key`.
+- valor vacio reporta `empty-translation-value`.
+- catalogos JSON planos con placeholder `{locale}`.
+- multiples catalogos explicitos con `catalogs: string[]`.
+
 ### Catalogos
 
 Debe tener tests para:
@@ -1100,12 +1167,9 @@ Debe tener tests para:
 - JSX text visible.
 - atributo `placeholder`.
 - atributo `aria-label`.
-- prop configurada en componente.
-- `enabled: false` no emite diagnosticos.
-- `ignore` por string.
-- `ignore` por RegExp.
-- `minLength`.
-- `ignoreFiles`.
+- regla en `off` no emite diagnosticos.
+- regla en `warning` emite warning.
+- regla en `error` emite error.
 
 ### CLI
 

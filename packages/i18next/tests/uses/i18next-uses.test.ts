@@ -10,7 +10,13 @@ import {
   type RuleLevel,
   type RuleOverrides
 } from "@stale-i18n/core";
-import { I18nextChecker, type I18nextCheckOptions, type RawTextOptions } from "@stale-i18n/i18next";
+import {
+  CatalogConfigI18n,
+  I18nextChecker,
+  type I18nextCatalogInput,
+  type I18nextCheckOptions
+} from "@stale-i18n/i18next";
+import { createInstance, type i18n } from "i18next";
 import { describe, expect, it } from "vitest";
 
 const usesDir = path.dirname(fileURLToPath(import.meta.url));
@@ -24,19 +30,12 @@ type ResultExpectation = Partial<
   }
 >;
 
-type RawJsonOptions = Partial<
-  Omit<I18nextCheckOptions, "rawText"> & {
-    rawText?: Partial<
-      Omit<RawTextOptions, "ignore"> & {
-        ignore?: Array<string | { regexp: string; flags?: string }>;
-      }
-    >;
-  }
->;
+type RawJsonOptions = Partial<I18nextCheckOptions>;
 
 type ExpectedUseCase = {
   api?: "async" | "sync";
   options?: RawJsonOptions;
+  runtimeI18nInstances?: RuntimeI18nInstanceConfig[];
   result?: ResultExpectation;
   variants?: Array<{
     name: string;
@@ -47,6 +46,14 @@ type ExpectedUseCase = {
     code: RuleCode;
     options?: RawJsonOptions;
   };
+};
+
+type RuntimeI18nInstanceConfig = {
+  bundles: Array<{
+    locale: string;
+    namespace: string;
+    resources: Record<string, unknown>;
+  }>;
 };
 
 type UseCase = {
@@ -87,11 +94,10 @@ function normalizeOptions(
   caseDir: string,
   options: RawJsonOptions = {}
 ): Partial<I18nextCheckOptions> {
-  const { catalogs: rawCatalogs, rawText: rawRawText, target: rawTarget, ...rawRest } = options;
+  const { catalogs: rawCatalogs, target: rawTarget, ...rawRest } = options;
   const normalized: Partial<I18nextCheckOptions> = { ...rawRest };
   const target = resolvePathOption(caseDir, rawTarget);
   const catalogs = resolveCatalogsOption(caseDir, rawCatalogs);
-  const rawText = normalizeRawTextOptions(rawRawText);
 
   if (target !== undefined) {
     normalized.target = target;
@@ -99,10 +105,6 @@ function normalizeOptions(
 
   if (catalogs !== undefined) {
     normalized.catalogs = catalogs;
-  }
-
-  if (rawText !== undefined) {
-    normalized.rawText = rawText;
   }
 
   return normalized;
@@ -124,13 +126,31 @@ function resolvePathOption(caseDir: string, value: string | undefined) {
   return path.join(caseDir, value);
 }
 
-function resolveCatalogsOption(caseDir: string, value: string | string[] | undefined) {
+function resolveCatalogsOption(
+  caseDir: string,
+  value: I18nextCheckOptions["catalogs"] | undefined
+): I18nextCheckOptions["catalogs"] | undefined {
   if (value === undefined) {
     return value;
   }
 
   if (Array.isArray(value)) {
-    return value.map((catalog) => resolveCatalogPath(caseDir, catalog));
+    return value.map((catalog) => resolveCatalogOption(caseDir, catalog));
+  }
+
+  return resolveCatalogOption(caseDir, value);
+}
+
+function resolveCatalogOption(caseDir: string, value: I18nextCatalogInput) {
+  if (typeof value === "object" && value.type === "path") {
+    return {
+      ...value,
+      data: resolveCatalogPath(caseDir, value.data)
+    };
+  }
+
+  if (typeof value === "object") {
+    return value;
   }
 
   return resolveCatalogPath(caseDir, value);
@@ -142,29 +162,6 @@ function resolveCatalogPath(caseDir: string, value: string) {
   }
 
   return path.join(caseDir, value);
-}
-
-function normalizeRawTextOptions(
-  rawText: RawJsonOptions["rawText"] | undefined
-): RawTextOptions | undefined {
-  if (rawText === undefined) {
-    return undefined;
-  }
-
-  const { ignore, ...rest } = rawText;
-  const normalized: RawTextOptions = { ...rest };
-
-  if (ignore !== undefined) {
-    normalized.ignore = ignore.map((entry) => {
-      if (typeof entry === "string") {
-        return entry;
-      }
-
-      return new RegExp(entry.regexp, entry.flags);
-    });
-  }
-
-  return normalized;
 }
 
 function expectResult(result: CheckResult, expected: ResultExpectation = {}) {
@@ -196,8 +193,31 @@ function checkCase(caseDir: string, options: RawJsonOptions = {}) {
 }
 
 async function checkUseCase(useCase: UseCase) {
-  const checker = new I18nextChecker(buildOptions(useCase.dir, useCase.expected.options));
+  const checker = new I18nextChecker(
+    await buildUseCaseOptions(useCase.dir, useCase.expected.options, useCase.expected)
+  );
   return useCase.expected.api === "async" ? checker.check() : checker.checkSync();
+}
+
+async function buildUseCaseOptions(
+  caseDir: string,
+  options: RawJsonOptions = {},
+  expected: ExpectedUseCase
+): Promise<I18nextCheckOptions> {
+  const builtOptions = buildOptions(caseDir, options);
+
+  if (expected.runtimeI18nInstances === undefined) {
+    return builtOptions;
+  }
+
+  const instances = await Promise.all(
+    expected.runtimeI18nInstances.map((config) => createRuntimeI18n(config.bundles))
+  );
+
+  return {
+    ...builtOptions,
+    catalogs: CatalogConfigI18n.fromI18nInstances(instances)
+  };
 }
 
 function checkRuleLevel(
@@ -278,3 +298,23 @@ describe("i18next public API use cases", () => {
     });
   }
 });
+
+async function createRuntimeI18n(
+  bundles: Array<{
+    locale: string;
+    namespace: string;
+    resources: Record<string, unknown>;
+  }>
+): Promise<i18n> {
+  const instance = createInstance();
+  await instance.init({
+    lng: "en",
+    fallbackLng: "en"
+  });
+
+  for (const bundle of bundles) {
+    instance.addResourceBundle(bundle.locale, bundle.namespace, bundle.resources);
+  }
+
+  return instance;
+}

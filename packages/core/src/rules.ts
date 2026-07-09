@@ -19,7 +19,7 @@ export const RULE_DEFINITIONS = {
   },
   "unused-translation-key": {
     code: "unused-translation-key",
-    defaultLevel: "warning",
+    defaultLevel: "error",
     description: "Translation key is defined in a catalog but never used in source."
   },
   "empty-translation-value": {

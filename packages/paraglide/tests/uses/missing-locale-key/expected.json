@@ -1,0 +1,15 @@
+{
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 2,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "missing-locale-key",
+        "severity": "error",
+        "key": "home_title",
+        "locale": "es"
+      }
+    ]
+  }
+}

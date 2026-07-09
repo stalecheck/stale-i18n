@@ -74,12 +74,20 @@ importers:
       oxc-parser:
         specifier: 'catalog:'
         version: 0.134.0
+    devDependencies:
+      i18next:
+        specifier: 26.3.1
+        version: 26.3.1(typescript@6.0.3)
 
   packages/intlayer: {}
 
   packages/lingui: {}
 
-  packages/paraglide: {}
+  packages/paraglide:
+    dependencies:
+      '@stale-i18n/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 
@@ -1189,6 +1197,14 @@ packages:
   html-escaper@2.0.2:
     resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
 
+  i18next@26.3.1:
+    resolution: {integrity: sha512-txQqd5EULsqEh9OJqRH15aCaOuy/nLJyhw5EHCSKLKJE1aBbb3Zve2+uQIxgWhPm1QqUQoWyQBm2kfmmIrzkcQ==}
+    peerDependencies:
+      typescript: ^5 || ^6
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   istanbul-lib-coverage@3.2.2:
     resolution: {integrity: sha512-O8dpsF+r0WV/8MNRKfnmrtCWhuKjxrq2w+jpzBL5UZKTi2LeVWnWOmWRxFlesJONmc+wLAGvKQZEOanko0LFTg==}
     engines: {node: '>=8'}
@@ -2294,6 +2310,10 @@ snapshots:
   has-flag@4.0.0: {}
 
   html-escaper@2.0.2: {}
+
+  i18next@26.3.1(typescript@6.0.3):
+    optionalDependencies:
+      typescript: 6.0.3
 
   istanbul-lib-coverage@3.2.2: {}
 

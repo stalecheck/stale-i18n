@@ -1,0 +1,15 @@
+{
+  "options": {
+    "catalogs": {
+      "type": "path",
+      "namespace": "translation",
+      "data": "messages/{locale}/app.json"
+    }
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": []
+  }
+}

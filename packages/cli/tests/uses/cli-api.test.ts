@@ -25,6 +25,20 @@ function fixture() {
   return dir;
 }
 
+function rawUiTextFixture() {
+  const dir = mkdtempSync(path.join(tmpdir(), "stale-i18n-cli-raw-"));
+  mkdirSync(path.join(dir, "src"), { recursive: true });
+  mkdirSync(path.join(dir, "locales", "en"), { recursive: true });
+  mkdirSync(path.join(dir, "locales", "es"), { recursive: true });
+  writeFileSync(
+    path.join(dir, "src", "App.tsx"),
+    ["export function App() {", "  return <button>Save</button>;", "}"].join("\n")
+  );
+  writeFileSync(path.join(dir, "locales", "en", "translation.json"), "{}");
+  writeFileSync(path.join(dir, "locales", "es", "translation.json"), "{}");
+  return dir;
+}
+
 describe("CLI", () => {
   it("runs i18next with JSON output and exit code 0", async () => {
     const dir = fixture();
@@ -61,11 +75,33 @@ describe("CLI", () => {
     expect(result.stdout).toContain("missing-locale-key");
   });
 
+  it("enables raw UI text through rule configuration", async () => {
+    const dir = rawUiTextFixture();
+
+    const result = await runCli([
+      "i18next",
+      path.join(dir, "src"),
+      "--catalog",
+      path.join(dir, "locales", "{locale}", "{namespace}.json"),
+      "--mode",
+      "jsx",
+      "--rule",
+      "raw-ui-text=warning"
+    ]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("warning");
+    expect(result.stdout).toContain("raw-ui-text");
+  });
+
   it("returns exit code 2 for invalid arguments and prohibited options", async () => {
     await expect(runCli(["i18next", "src", "--library", "react-i18next"])).resolves.toEqual(
       expect.objectContaining({ exitCode: 2 })
     );
     await expect(runCli(["i18next", "src", "--deep-search"])).resolves.toEqual(
+      expect.objectContaining({ exitCode: 2 })
+    );
+    await expect(runCli(["i18next", "src", "--mode", "vue"])).resolves.toEqual(
       expect.objectContaining({ exitCode: 2 })
     );
   });

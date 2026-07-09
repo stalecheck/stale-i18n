@@ -1,0 +1,7 @@
+{
+  "message_one": "Un mensaje",
+  "message_other": "{{count}} mensajes",
+  "invite_female": "Invitarla",
+  "guest_male_one": "Un invitado",
+  "guest_male_other": "{{count}} invitados"
+}

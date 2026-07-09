@@ -17,6 +17,7 @@
       "@stale-i18n/core": ["./packages/core/src/index.ts"],
       "@stale-i18n/formatjs": ["./packages/formatjs/src/index.ts"],
       "@stale-i18n/i18next": ["./packages/i18next/src/index.ts"],
+      "@stale-i18n/paraglide": ["./packages/paraglide/src/index.ts"],
       "@stale-i18n/cli": ["./packages/cli/src/index.ts"]
     },
     "resolveJsonModule": true,

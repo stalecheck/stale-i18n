@@ -1,18 +1,13 @@
 import { createDiagnostic, jsxName, locationFromIndex, type Diagnostic } from "@stale-i18n/core";
 import { jsxAttributeStringValue } from "./jsx.js";
-import type { AnyNode, I18nextCheckOptions, RawTextOptions } from "./types.js";
+import type { AnyNode, I18nextCheckOptions } from "./types.js";
 
-export function rawTextDiagnostic(
+export function rawUiTextDiagnostic(
   node: AnyNode,
   source: string,
   filePath: string,
   options: I18nextCheckOptions
 ): Diagnostic | null {
-  const rawText = options.rawText;
-  if (!rawText || rawText.ignoreFiles?.some((pattern) => filePath.includes(pattern))) {
-    return null;
-  }
-
   if (node.type === "JSXText") {
     const value = typeof node.value === "string" ? node.value : "";
     return createRawTextDiagnostic(value, node, source, filePath, options);
@@ -20,7 +15,7 @@ export function rawTextDiagnostic(
 
   if (node.type === "JSXAttribute") {
     const name = jsxName(node.name as AnyNode | undefined);
-    if (!name || !rawAttributeAllowed(name, rawText)) {
+    if (!name || !rawAttributeAllowed(name)) {
       return null;
     }
     const value = jsxAttributeStringValue(node);
@@ -30,12 +25,8 @@ export function rawTextDiagnostic(
   return null;
 }
 
-function rawAttributeAllowed(name: string, rawText: RawTextOptions): boolean {
-  const attributes = rawText.attributes ?? ["title", "aria-label", "alt", "placeholder", "label"];
-  return (
-    attributes.includes(name) ||
-    Object.values(rawText.components ?? {}).some((props) => props.includes(name))
-  );
+function rawAttributeAllowed(name: string): boolean {
+  return ["title", "aria-label", "alt", "placeholder", "label"].includes(name);
 }
 
 function createRawTextDiagnostic(
@@ -46,24 +37,13 @@ function createRawTextDiagnostic(
   options: I18nextCheckOptions
 ): Diagnostic | null {
   const text = value.replace(/\s+/g, " ").trim();
-  const rawText = options.rawText;
-  if (!rawText || text === "" || !/[A-Za-zÀ-ÿ]/.test(text) || /^\d+$/.test(text)) {
-    return null;
-  }
-  if (text.length < (rawText.minLength ?? 1)) {
-    return null;
-  }
-  if (
-    rawText.ignore?.some((ignore) =>
-      typeof ignore === "string" ? ignore === text : ignore.test(text)
-    )
-  ) {
+  if (text === "" || !/[A-Za-zÀ-ÿ]/.test(text) || /^\d+$/.test(text)) {
     return null;
   }
   const location = locationFromIndex(source, node.start ?? 0);
   return createDiagnostic({
     code: "raw-ui-text",
-    rules: { ...options.rules, "raw-ui-text": options.rules?.["raw-ui-text"] ?? "warning" },
+    rules: options.rules,
     message: `Raw UI text "${text}" should use i18next`,
     filePath,
     line: location.line,

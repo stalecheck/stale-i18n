@@ -1,0 +1,62 @@
+{
+  "runtimeI18nInstances": [
+    {
+      "bundles": [
+        {
+          "locale": "en",
+          "namespace": "documents",
+          "resources": {
+            "title": "Documents"
+          }
+        },
+        {
+          "locale": "es",
+          "namespace": "documents",
+          "resources": {
+            "title": "Documentos"
+          }
+        }
+      ]
+    },
+    {
+      "bundles": [
+        {
+          "locale": "en",
+          "namespace": "payments",
+          "resources": {
+            "checkout": {
+              "pay": "Pay now"
+            }
+          }
+        },
+        {
+          "locale": "es",
+          "namespace": "payments",
+          "resources": {
+            "checkout": {
+              "pay": "Pagar ahora"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 4,
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "checkout.pay"
+      }
+    ],
+    "absentDiagnostics": [
+      {
+        "code": "unused-translation-key",
+        "key": "checkout.pay"
+      }
+    ]
+  }
+}

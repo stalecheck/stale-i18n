@@ -1,0 +1,28 @@
+{
+  "runtimeI18nInstances": [
+    {
+      "bundles": [
+        {
+          "locale": "en",
+          "namespace": "translation",
+          "resources": {
+            "hello": "Hello"
+          }
+        },
+        {
+          "locale": "es",
+          "namespace": "translation",
+          "resources": {
+            "hello": "Hola"
+          }
+        }
+      ]
+    }
+  ],
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": []
+  }
+}

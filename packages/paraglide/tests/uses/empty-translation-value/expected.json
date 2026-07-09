@@ -1,0 +1,15 @@
+{
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 2,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "empty-translation-value",
+        "severity": "error",
+        "key": "home_title",
+        "locale": "es"
+      }
+    ]
+  }
+}

@@ -1,4 +1,8 @@
-import { I18nextChecker, type I18nextCheckOptions } from "@stale-i18n/i18next";
+import {
+  I18nextChecker,
+  type I18nextCheckMode,
+  type I18nextCheckOptions
+} from "@stale-i18n/i18next";
 import {
   RULE_DEFINITIONS,
   type CheckResult,
@@ -33,6 +37,7 @@ export async function runCli(argv: string[]): Promise<CliRunResult> {
     const options: I18nextCheckOptions = {
       target: parsed.target,
       catalogs: parsed.catalogs,
+      ...(parsed.mode === undefined ? {} : { mode: parsed.mode }),
       ...(parsed.defaultNamespace === undefined
         ? {}
         : { defaultNamespace: parsed.defaultNamespace }),
@@ -55,6 +60,7 @@ function parseArgs(argv: string[]): {
   command?: string;
   target: string;
   catalogs: string[];
+  mode?: I18nextCheckMode | undefined;
   defaultNamespace?: string | undefined;
   rules: RuleOverrides;
   format: CliFormat;
@@ -72,6 +78,7 @@ function parseArgs(argv: string[]): {
 
   const catalogs: string[] = [];
   const rules: RuleOverrides = {};
+  let mode: I18nextCheckMode | undefined;
   let defaultNamespace: string | undefined;
   let format: CliFormat = "text";
 
@@ -88,6 +95,13 @@ function parseArgs(argv: string[]): {
       const value = rest[index + 1];
       if (!value) throw new Error("--default-namespace requires a value");
       defaultNamespace = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--mode") {
+      const value = rest[index + 1];
+      if (value !== "jsx") throw new Error("--mode must be jsx");
+      mode = value;
       index += 1;
       continue;
     }
@@ -116,7 +130,7 @@ function parseArgs(argv: string[]): {
     throw new Error("--catalog is required");
   }
 
-  return { command, target, catalogs, defaultNamespace, rules, format };
+  return { command, target, catalogs, mode, defaultNamespace, rules, format };
 }
 
 function isRuleCode(value: string | undefined): value is RuleCode {

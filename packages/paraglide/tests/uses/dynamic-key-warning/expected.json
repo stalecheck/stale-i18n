@@ -1,0 +1,10 @@
+{
+  "ruleLevels": {
+    "code": "unresolved-dynamic-key",
+    "options": {
+      "rules": {
+        "unused-translation-key": "off"
+      }
+    }
+  }
+}

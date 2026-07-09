@@ -2,14 +2,27 @@
   "name": "@stale-i18n/paraglide",
   "version": "0.0.0",
   "private": true,
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "tsup --config ./tsup.config.ts",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix .",
+    "test": "vitest run --root ../.. --project paraglide",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@stale-i18n/core": "workspace:*"
   },
   "engines": {
     "node": ">=22.12.0"

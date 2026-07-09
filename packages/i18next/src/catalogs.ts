@@ -8,25 +8,44 @@ import {
 } from "@stale-i18n/core";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import type { AnyNode, CatalogEntry, CatalogReadResult, I18nextCheckOptions } from "./types.js";
+import type { CatalogConfigI18n } from "./catalog-config.js";
+import type {
+  AnyNode,
+  CatalogEntry,
+  CatalogReadResult,
+  I18nextCatalogInput,
+  I18nextCheckOptions
+} from "./types.js";
 
 export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
-  const patterns = Array.isArray(options.catalogs) ? options.catalogs : [options.catalogs];
-  const catalogPaths = patterns.flatMap((pattern) => expandCatalogPattern(pattern));
+  const catalogs = Array.isArray(options.catalogs) ? options.catalogs : [options.catalogs];
+  const pathConfigs = catalogs.filter(isPathCatalog);
+  const resourceConfigs = catalogs.filter(isResourceCatalog);
+  const catalogPaths = pathConfigs.flatMap((catalog) =>
+    expandCatalogPattern(pathCatalogData(catalog)).map((filePath) => ({
+      filePath,
+      locale: typeof catalog === "string" ? undefined : catalog.locale,
+      namespace: typeof catalog === "string" ? undefined : catalog.namespace
+    }))
+  );
   const entries: CatalogEntry[] = [];
   const diagnostics = [];
   const validNamespaces = new Set<string>();
   const localesByNamespace = new Map<string, Set<string>>();
 
-  for (const catalogPath of catalogPaths) {
-    const meta = inferCatalogMeta(catalogPath, options.defaultNamespace ?? "translation");
-    if (!existsSync(catalogPath)) {
+  for (const catalog of catalogPaths) {
+    const inferred = inferCatalogMeta(catalog.filePath, options.defaultNamespace ?? "translation");
+    const meta = {
+      locale: catalog.locale ?? inferred.locale,
+      namespace: catalog.namespace ?? inferred.namespace
+    };
+    if (!existsSync(catalog.filePath)) {
       const diagnostic = createDiagnostic({
         code: "catalog-file-not-found",
         rules: options.rules,
-        message: `Catalog file not found: ${catalogPath}`,
-        filePath: catalogPath,
-        catalogPath,
+        message: `Catalog file not found: ${catalog.filePath}`,
+        filePath: catalog.filePath,
+        catalogPath: catalog.filePath,
         line: 1,
         column: 1
       });
@@ -35,7 +54,7 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
     }
 
     try {
-      const parsed = readCatalogFile(catalogPath);
+      const parsed = readCatalogFile(catalog.filePath);
       validNamespaces.add(meta.namespace);
       if (meta.locale) {
         const locales = localesByNamespace.get(meta.namespace) ?? new Set<string>();
@@ -46,7 +65,7 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
         ...flattenCatalog(parsed, {
           namespace: meta.namespace,
           locale: meta.locale,
-          filePath: catalogPath,
+          filePath: catalog.filePath,
           keySeparator: options.keySeparator
         })
       );
@@ -55,8 +74,8 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
         code: "catalog-parse-error",
         rules: options.rules,
         message: error instanceof Error ? error.message : "Invalid JSON catalog",
-        filePath: catalogPath,
-        catalogPath,
+        filePath: catalog.filePath,
+        catalogPath: catalog.filePath,
         line: 1,
         column: 1
       });
@@ -64,13 +83,52 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
     }
   }
 
+  for (const config of resourceConfigs) {
+    const namespace = config.namespace ?? options.defaultNamespace ?? "translation";
+    validNamespaces.add(namespace);
+    if (config.locale) {
+      const locales = localesByNamespace.get(namespace) ?? new Set<string>();
+      locales.add(config.locale);
+      localesByNamespace.set(namespace, locales);
+    }
+
+    entries.push(
+      ...flattenCatalog(config.data, {
+        namespace,
+        locale: config.locale,
+        filePath: config.filePath ?? virtualCatalogPath(namespace, config.locale),
+        keySeparator: options.keySeparator
+      })
+    );
+  }
+
   return {
     entries,
     diagnostics,
-    catalogsChecked: catalogPaths.length,
+    catalogsChecked: catalogPaths.length + resourceConfigs.length,
     validNamespaces,
     localesByNamespace
   };
+}
+
+function isPathCatalog(
+  catalog: I18nextCatalogInput
+): catalog is string | Extract<CatalogConfigI18n, { type: "path" }> {
+  return typeof catalog === "string" || catalog.type === "path";
+}
+
+function isResourceCatalog(
+  catalog: I18nextCatalogInput
+): catalog is Extract<CatalogConfigI18n, { type: "resource" }> {
+  return typeof catalog !== "string" && catalog.type === "resource";
+}
+
+function pathCatalogData(catalog: string | Extract<CatalogConfigI18n, { type: "path" }>): string {
+  return typeof catalog === "string" ? catalog : catalog.data;
+}
+
+function virtualCatalogPath(namespace: string, locale: string | undefined): string {
+  return `i18next://${locale ?? "unknown"}/${namespace}`;
 }
 
 function readCatalogFile(filePath: string): unknown {

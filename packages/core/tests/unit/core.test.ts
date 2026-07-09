@@ -24,6 +24,7 @@ describe("core result helpers", () => {
   it("marks results with errors as FAIL and warning-only results as SUCCESS", () => {
     const warning = createDiagnostic({
       code: "unused-translation-key",
+      rules: { "unused-translation-key": "warning" },
       message: "Unused",
       filePath: "locales/en.json",
       line: 1,
@@ -42,6 +43,7 @@ describe("core result helpers", () => {
   });
 
   it("merges rule levels and drops diagnostics for disabled rules", () => {
+    expect(RULE_DEFINITIONS["unused-translation-key"].defaultLevel).toBe("error");
     expect(RULE_DEFINITIONS["raw-ui-text"].defaultLevel).toBe("off");
     expect(getRuleLevel("raw-ui-text", { "raw-ui-text": "warning" })).toBe("warning");
     expect(

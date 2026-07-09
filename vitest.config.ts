@@ -11,6 +11,9 @@ export default defineConfig({
       "@stale-i18n/formatjs": fileURLToPath(
         new URL("./packages/formatjs/src/index.ts", import.meta.url)
       ),
+      "@stale-i18n/paraglide": fileURLToPath(
+        new URL("./packages/paraglide/src/index.ts", import.meta.url)
+      ),
       "@stale-i18n/cli": fileURLToPath(new URL("./packages/cli/src/index.ts", import.meta.url))
     }
   },
@@ -40,6 +43,16 @@ export default defineConfig({
           include: [
             "packages/formatjs/tests/unit/**/*.test.ts",
             "packages/formatjs/tests/uses/**/*.test.ts"
+          ]
+        }
+      },
+      {
+        extends: true,
+        test: {
+          name: "paraglide",
+          include: [
+            "packages/paraglide/tests/unit/**/*.test.ts",
+            "packages/paraglide/tests/uses/**/*.test.ts"
           ]
         }
       },

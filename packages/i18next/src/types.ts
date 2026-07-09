@@ -1,22 +1,21 @@
 import type { BaseCheckOptions, Diagnostic } from "@stale-i18n/core";
+import type { CatalogConfigI18n } from "./catalog-config.js";
 export type { AnyNode } from "@stale-i18n/core";
+export type { CatalogConfigI18n } from "./catalog-config.js";
 
-export type RawTextOptions = {
-  enabled?: boolean;
-  minLength?: number;
-  ignore?: Array<string | RegExp>;
-  attributes?: string[];
-  components?: Record<string, string[]>;
-  ignoreFiles?: string[];
-};
+export type I18nextCheckMode = "jsx";
 
 export type I18nextCheckOptions = BaseCheckOptions & {
-  catalogs: string | string[];
+  catalogs: I18nextCatalogs;
+  mode?: I18nextCheckMode;
   defaultNamespace?: string;
   keySeparator?: string | false;
   namespaceSeparator?: string | false;
-  rawText?: RawTextOptions;
 };
+
+export type I18nextCatalogInput = string | CatalogConfigI18n;
+
+export type I18nextCatalogs = I18nextCatalogInput | I18nextCatalogInput[];
 
 export type TBinding = {
   namespace: string;

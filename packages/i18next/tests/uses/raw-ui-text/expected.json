@@ -1,17 +1,8 @@
 {
   "options": {
-    "rawText": {
-      "enabled": true,
-      "minLength": 3,
-      "ignore": [
-        {
-          "regexp": "^Save$"
-        }
-      ],
-      "attributes": ["title"],
-      "components": {
-        "Input": ["label", "helperText"]
-      }
+    "mode": "jsx",
+    "rules": {
+      "raw-ui-text": "warning"
     }
   },
   "result": {

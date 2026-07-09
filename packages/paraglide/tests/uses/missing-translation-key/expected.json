@@ -1,0 +1,14 @@
+{
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 2,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "severity": "error",
+        "key": "missing_title"
+      }
+    ]
+  }
+}
