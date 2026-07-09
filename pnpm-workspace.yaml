@@ -7,7 +7,7 @@ packages:
 
 catalog:
   oxc-parser: ^0.134.0
-  oxc-resolver: ^11.20.0
+  oxc-resolver: ^11.23.0
 
 savePrefix: ''
 engineStrict: true
