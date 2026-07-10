@@ -1,5 +1,5 @@
-import { createDiagnostic } from "@stale-i18n/core";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { createDiagnostic, expandCatalogPattern } from "@stale-i18n/core";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { CatalogEntry, CatalogReadResult, ParaglideCheckOptions } from "./types.js";
 
@@ -10,8 +10,9 @@ export function readCatalogs(options: ParaglideCheckOptions): CatalogReadResult 
   const diagnostics = [];
   const locales = new Set<string>();
 
-  for (const catalogPath of catalogPaths) {
-    const locale = inferLocale(catalogPath);
+  for (const catalog of catalogPaths) {
+    const catalogPath = catalog.filePath;
+    const locale = catalog.locale ?? path.parse(catalogPath).name;
     if (!existsSync(catalogPath)) {
       const diagnostic = createDiagnostic({
         code: "catalog-file-not-found",
@@ -45,55 +46,6 @@ export function readCatalogs(options: ParaglideCheckOptions): CatalogReadResult 
   }
 
   return { entries, diagnostics, catalogsChecked: catalogPaths.length, locales };
-}
-
-function expandCatalogPattern(pattern: string): string[] {
-  if (!pattern.includes("{locale}")) {
-    return [path.resolve(pattern)];
-  }
-
-  const absolutePattern = path.resolve(pattern);
-  const root = fixedRoot(absolutePattern);
-  if (!existsSync(root)) {
-    return [absolutePattern.replace("{locale}", "*")];
-  }
-
-  const matcher = patternToRegExp(absolutePattern);
-  const files: string[] = [];
-  const visit = (dir: string) => {
-    for (const entry of readdirSync(dir)) {
-      const filePath = path.join(dir, entry);
-      const stat = statSync(filePath);
-      if (stat.isDirectory()) {
-        visit(filePath);
-      } else if (matcher.test(filePath)) {
-        files.push(filePath);
-      }
-    }
-  };
-  visit(root);
-  return files.sort();
-}
-
-function fixedRoot(pattern: string): string {
-  const parts = pattern.split(path.sep);
-  const rootParts: string[] = [];
-  for (const part of parts) {
-    if (part.includes("{locale}")) {
-      break;
-    }
-    rootParts.push(part);
-  }
-  return rootParts.length === 1 && rootParts[0] === "" ? path.sep : rootParts.join(path.sep);
-}
-
-function patternToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`^${escaped.replace("\\{locale\\}", "[^\\\\/]+")}$`);
-}
-
-function inferLocale(filePath: string): string {
-  return path.parse(filePath).name;
 }
 
 function flattenCatalog(value: unknown, filePath: string, locale: string): CatalogEntry[] {

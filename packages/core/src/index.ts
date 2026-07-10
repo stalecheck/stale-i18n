@@ -10,12 +10,16 @@ export {
 } from "./ast.js";
 export { createConfigurationDiagnostic, createDiagnostic, createResult } from "./diagnostics.js";
 export type { CreateConfigurationDiagnosticInput, CreateDiagnosticInput } from "./diagnostics.js";
+export { expandCatalogPattern } from "./catalog-pattern.js";
+export type { CatalogPathMetadata, ExpandedCatalogPath } from "./catalog-pattern.js";
 export { discoverSourceFiles, formatSourceTarget, sourceTargetExists } from "./files.js";
 export { parseSource } from "./parser.js";
 export type { ParseSourceResult } from "./parser.js";
 export { getRuleLevel, RULE_DEFINITIONS } from "./rules.js";
 export type { RuleDefinition } from "./rules.js";
 export { locationFromIndex } from "./source-location.js";
+export { createSourceScope } from "./scope.js";
+export type { BindingId, SourceScope } from "./scope.js";
 export {
   collectStaticStringBinding,
   collectStaticStringEnum,

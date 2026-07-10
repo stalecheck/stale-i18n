@@ -307,6 +307,51 @@ describe("i18next public API use cases", () => {
   }
 });
 
+describe("i18next conservative plural families", () => {
+  const fixturesDir = path.join(usesDir, "..", "fixtures");
+
+  it("accepts partial, locale-specific, contextual, ordinal and Trans plural families", () => {
+    const result = checkCase(path.join(fixturesDir, "plural-families-success"));
+
+    expect(result).toEqual({
+      status: "SUCCESS",
+      diagnostics: [],
+      filesChecked: 1,
+      catalogsChecked: 2
+    });
+  });
+
+  it("reports only a family missing from a locale or from every catalog", () => {
+    const result = checkCase(path.join(fixturesDir, "plural-family-missing"));
+
+    expect(
+      result.diagnostics.map(({ code, key, locale }) => ({
+        code,
+        key,
+        ...(locale === undefined ? {} : { locale })
+      }))
+    ).toEqual([
+      {
+        code: "missing-locale-key",
+        key: "presentInOneLocale",
+        locale: "ar"
+      },
+      {
+        code: "missing-translation-key",
+        key: "absentEverywhere"
+      }
+    ]);
+  });
+
+  it("does not consume a non-plural key that merely shares the prefix", () => {
+    const result = checkCase(path.join(fixturesDir, "plural-family-lookalike"));
+
+    expect(result.diagnostics.map(({ code, key }) => ({ code, key }))).toEqual([
+      { code: "unused-translation-key", key: "items_archive" }
+    ]);
+  });
+});
+
 async function createRuntimeI18n(
   bundles: Array<{
     locale: string;

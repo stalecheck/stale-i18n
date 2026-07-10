@@ -1,0 +1,17 @@
+{
+  "otherOnly_other": "{{count}} عنصر",
+  "baseOnly": "{{count}} عنصر",
+  "withOptionalZero_other": "{{count}} عنصر",
+  "differentForms_zero": "لا عناصر",
+  "differentForms_one": "عنصر واحد",
+  "differentForms_two": "عنصران",
+  "differentForms_few": "{{count}} عناصر",
+  "differentForms_many": "{{count}} عنصرًا",
+  "differentForms_other": "{{count}} عنصر",
+  "guest_male_other": "{{count}} ضيف",
+  "position_ordinal_other": "الموضع {{count}}",
+  "transItems_other": "{{count}} عنصر",
+  "transGuest_female_other": "{{count}} ضيفة",
+  "transOrdinal_ordinal_other": "الموضع {{count}}",
+  "transOptions_formal_ordinal_other": "الموضع {{count}}"
+}

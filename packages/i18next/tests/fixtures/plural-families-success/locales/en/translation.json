@@ -1,0 +1,14 @@
+{
+  "otherOnly_other": "{{count}} items",
+  "baseOnly": "{{count}} items",
+  "withOptionalZero_zero": "No items",
+  "withOptionalZero_other": "{{count}} items",
+  "differentForms_one": "One item",
+  "differentForms_other": "{{count}} items",
+  "guest_male_other": "{{count}} male guests",
+  "position_ordinal_other": "Position {{count}}",
+  "transItems_other": "{{count}} items",
+  "transGuest_female_other": "{{count}} female guests",
+  "transOrdinal_ordinal_other": "Position {{count}}",
+  "transOptions_formal_ordinal_other": "Position {{count}}"
+}

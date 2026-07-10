@@ -1,8 +1,8 @@
 import {
   arrayOf,
-  bindingNames,
   collectStaticStringBinding,
   collectStaticStringEnum,
+  createSourceScope,
   createStaticStringContext,
   identifierName,
   locationFromIndex,
@@ -15,37 +15,24 @@ import {
 import type { AnyNode } from "./types.js";
 
 export function analyzeProgram(program: AnyNode, source: string, filePath: string): SourceUsage[] {
-  const messageBindings = new Set<string>();
-  const staticStrings = createStaticStringContext();
+  const scope = createSourceScope(program);
+  const messageBindings = new Set<number>();
+  const staticStrings = createStaticStringContext(scope);
   const usages: SourceUsage[] = [];
 
   walk(program, {
-    enter(node, _parent, state) {
+    enter(node) {
       if (
         node.type === "ImportDeclaration" &&
         isParaglideMessagesImport(stringLiteral(node.source))
       ) {
         for (const specifier of arrayOf<AnyNode>(node.specifiers)) {
           const imported = identifierName(specifier.imported);
-          const local = identifierName(specifier.local);
-          if (imported === "m" && local) {
+          const local = scope.bindingId(specifier.local);
+          if (imported === "m" && local !== undefined) {
             messageBindings.add(local);
           }
         }
-      }
-
-      if (
-        node.type === "FunctionDeclaration" ||
-        node.type === "FunctionExpression" ||
-        node.type === "ArrowFunctionExpression"
-      ) {
-        const hidden = new Set(state.hidden);
-        for (const param of arrayOf<AnyNode>(node.params)) {
-          for (const name of bindingNames(param)) {
-            hidden.add(name);
-          }
-        }
-        return { hidden };
       }
 
       if (node.type === "VariableDeclarator") {
@@ -59,7 +46,7 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
       if (node.type === "CallExpression") {
         const callee = unwrapExpression(node.callee as AnyNode | undefined);
         const member = memberExpressionObject(callee);
-        if (!member || !messageBindings.has(member.object) || state.hidden.has(member.object)) {
+        if (!member || !messageBindings.has(member.object)) {
           return undefined;
         }
 
@@ -78,13 +65,13 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
 
   function memberExpressionObject(
     node: AnyNode | undefined
-  ): { object: string; propertyValues: string[] | undefined } | null {
+  ): { object: number; propertyValues: string[] | undefined } | null {
     if (node?.type !== "MemberExpression") {
       return null;
     }
 
-    const object = identifierName(node.object);
-    if (!object) {
+    const object = scope.bindingId(node.object);
+    if (object === undefined) {
       return null;
     }
 

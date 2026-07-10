@@ -1,8 +1,8 @@
 import {
   arrayOf,
-  bindingNames,
   collectStaticStringBinding,
   collectStaticStringEnum,
+  createSourceScope,
   createStaticStringContext,
   identifierName,
   jsxName,
@@ -12,65 +12,60 @@ import {
   walk,
   type SourceLocation,
   type SourceUsage,
+  type BindingId,
   type StaticStringContext
 } from "@stale-i18n/core";
 import type { AnyNode } from "./types.js";
 
-type DescriptorValues = Map<string, string[]>;
+type DescriptorValues = Map<BindingId, string[]>;
+type DescriptorMemberValues = Map<BindingId, Map<string, string[]>>;
 
 export function analyzeProgram(program: AnyNode, source: string, filePath: string): SourceUsage[] {
-  const useIntlNames = new Set<string>();
-  const formattedMessageNames = new Set<string>();
-  const intlBindings = new Set<string>();
-  const formatMessageBindings = new Set<string>();
-  const staticStrings = createStaticStringContext();
+  const scope = createSourceScope(program);
+  const useIntlBindings = new Set<BindingId>();
+  const formattedMessageBindings = new Set<BindingId>();
+  const defineMessageBindings = new Set<BindingId>();
+  const defineMessagesBindings = new Set<BindingId>();
+  const intlBindings = new Set<BindingId>();
+  const formatMessageBindings = new Set<BindingId>();
+  const staticStrings = createStaticStringContext(scope);
   const descriptorValues: DescriptorValues = new Map();
+  const descriptorMemberValues: DescriptorMemberValues = new Map();
   const usages: SourceUsage[] = [];
 
   walk(program, {
-    enter(node, _parent, state) {
+    enter(node) {
       if (node.type === "ImportDeclaration" && stringLiteral(node.source) === "react-intl") {
         for (const specifier of arrayOf<AnyNode>(node.specifiers)) {
           const imported = identifierName(specifier.imported);
-          const local = identifierName(specifier.local);
-          if (imported === "useIntl" && local) {
-            useIntlNames.add(local);
+          const local = scope.bindingId(specifier.local);
+          if (imported === "useIntl" && local !== undefined) {
+            useIntlBindings.add(local);
           }
-          if (imported === "FormattedMessage" && local) {
-            formattedMessageNames.add(local);
+          if (imported === "FormattedMessage" && local !== undefined) {
+            formattedMessageBindings.add(local);
           }
-        }
-      }
-
-      if (
-        node.type === "FunctionDeclaration" ||
-        node.type === "FunctionExpression" ||
-        node.type === "ArrowFunctionExpression"
-      ) {
-        const hidden = new Set(state.hidden);
-        for (const param of arrayOf<AnyNode>(node.params)) {
-          for (const name of bindingNames(param)) {
-            hidden.add(name);
+          if (imported === "defineMessage" && local !== undefined) {
+            defineMessageBindings.add(local);
           }
-        }
-        return { hidden };
-      }
-
-      if (node.type === "BlockStatement") {
-        const hidden = hiddenBindingsForBlock(
-          node,
-          [useIntlNames, formattedMessageNames, intlBindings, formatMessageBindings],
-          useIntlNames
-        );
-        if (hidden.size > 0) {
-          return { hidden: new Set([...state.hidden, ...hidden]) };
+          if (imported === "defineMessages" && local !== undefined) {
+            defineMessagesBindings.add(local);
+          }
         }
       }
 
       if (node.type === "VariableDeclarator") {
-        collectIntlBinding(node, useIntlNames, state.hidden, intlBindings, formatMessageBindings);
+        collectIntlBinding(node, useIntlBindings, intlBindings, formatMessageBindings, scope);
         collectStaticStringBinding(node, staticStrings);
-        collectDescriptorBinding(node, staticStrings, descriptorValues);
+        collectDescriptorBinding(
+          node,
+          staticStrings,
+          defineMessageBindings,
+          defineMessagesBindings,
+          descriptorValues,
+          descriptorMemberValues,
+          scope
+        );
       }
 
       if (node.type === "TSEnumDeclaration") {
@@ -78,28 +73,40 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
       }
 
       if (node.type === "CallExpression") {
-        const calleeName = identifierName(node.callee);
-        if (calleeName && formatMessageBindings.has(calleeName) && !state.hidden.has(calleeName)) {
+        const calleeBinding = scope.bindingId(node.callee);
+        if (calleeBinding !== undefined && formatMessageBindings.has(calleeBinding)) {
           usages.push(
-            ...usagesFromFormatMessage(node, source, filePath, staticStrings, descriptorValues)
+            ...usagesFromFormatMessage(
+              node,
+              source,
+              filePath,
+              staticStrings,
+              descriptorValues,
+              descriptorMemberValues,
+              scope
+            )
           );
         }
-        const member = memberExpressionName(node.callee as AnyNode | undefined);
-        if (
-          member?.property === "formatMessage" &&
-          intlBindings.has(member.object) &&
-          !state.hidden.has(member.object)
-        ) {
+        const member = memberExpressionName(node.callee as AnyNode | undefined, scope);
+        if (member?.property === "formatMessage" && intlBindings.has(member.object)) {
           usages.push(
-            ...usagesFromFormatMessage(node, source, filePath, staticStrings, descriptorValues)
+            ...usagesFromFormatMessage(
+              node,
+              source,
+              filePath,
+              staticStrings,
+              descriptorValues,
+              descriptorMemberValues,
+              scope
+            )
           );
         }
       }
 
       if (node.type === "JSXElement") {
         const opening = node.openingElement as AnyNode | undefined;
-        const name = jsxName(opening?.name as AnyNode | undefined);
-        if (name && formattedMessageNames.has(name) && !state.hidden.has(name)) {
+        const binding = scope.bindingId(opening?.name);
+        if (binding !== undefined && formattedMessageBindings.has(binding)) {
           usages.push(...usagesFromFormattedMessage(node, source, filePath, staticStrings));
         }
       }
@@ -113,30 +120,32 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
 
 function collectIntlBinding(
   declarator: AnyNode,
-  useIntlNames: Set<string>,
-  hidden: Set<string>,
-  intlBindings: Set<string>,
-  formatMessageBindings: Set<string>
+  useIntlBindings: Set<BindingId>,
+  intlBindings: Set<BindingId>,
+  formatMessageBindings: Set<BindingId>,
+  scope: ReturnType<typeof createSourceScope>
 ) {
   const init = declarator.init as AnyNode | undefined;
-  const calleeName = identifierName(init?.callee);
-  if (!init || init.type !== "CallExpression" || !calleeName || !useIntlNames.has(calleeName)) {
-    return;
-  }
-  if (hidden.has(calleeName)) {
+  const calleeBinding = scope.bindingId(init?.callee);
+  if (
+    !init ||
+    init.type !== "CallExpression" ||
+    calleeBinding === undefined ||
+    !useIntlBindings.has(calleeBinding)
+  ) {
     return;
   }
 
   const id = declarator.id as AnyNode | undefined;
-  const direct = identifierName(id);
-  if (direct) {
+  const direct = scope.bindingId(id);
+  if (direct !== undefined) {
     intlBindings.add(direct);
   }
   if (id?.type === "ObjectPattern") {
     for (const property of arrayOf<AnyNode>(id.properties)) {
       if (identifierName(property.key) === "formatMessage") {
-        const local = identifierName(property.value);
-        if (local) {
+        const local = scope.bindingId(property.value);
+        if (local !== undefined) {
           formatMessageBindings.add(local);
         }
       }
@@ -144,54 +153,71 @@ function collectIntlBinding(
   }
 }
 
-function hiddenBindingsForBlock(
-  node: AnyNode,
-  trackedNames: Array<Set<string>>,
-  useIntlNames: Set<string>
-): Set<string> {
-  const tracked = new Set(trackedNames.flatMap((names) => [...names]));
-  const hidden = new Set<string>();
-
-  for (const statement of arrayOf<AnyNode>(node.body)) {
-    if (statement.type !== "VariableDeclaration") {
-      continue;
-    }
-
-    for (const declarator of arrayOf<AnyNode>(statement.declarations)) {
-      const init = declarator.init as AnyNode | undefined;
-      if (init?.type === "CallExpression" && useIntlNames.has(identifierName(init.callee) ?? "")) {
-        continue;
-      }
-
-      const id = declarator.id as AnyNode | undefined;
-      for (const name of id ? bindingNames(id) : []) {
-        if (tracked.has(name)) {
-          hidden.add(name);
-        }
-      }
-    }
-  }
-
-  return hidden;
-}
-
 function collectDescriptorBinding(
   declarator: AnyNode,
   staticStrings: StaticStringContext,
-  descriptorValues: DescriptorValues
+  defineMessageBindings: Set<BindingId>,
+  defineMessagesBindings: Set<BindingId>,
+  descriptorValues: DescriptorValues,
+  descriptorMemberValues: DescriptorMemberValues,
+  scope: ReturnType<typeof createSourceScope>
 ) {
-  const name = identifierName(declarator.id);
-  if (!name) {
+  const binding = scope.bindingId(declarator.id);
+  if (binding === undefined) {
     return;
   }
 
-  const values = idValuesFromDescriptor(declarator.init as AnyNode | undefined, staticStrings);
-  if (values === undefined) {
-    descriptorValues.delete(name);
+  descriptorValues.delete(binding);
+  descriptorMemberValues.delete(binding);
+  if (!scope.isConstant(declarator.id) || !scope.isStable(declarator.id)) {
     return;
   }
 
-  descriptorValues.set(name, values);
+  const init = declarator.init as AnyNode | undefined;
+  const values = idValuesFromDescriptor(init, staticStrings);
+  if (values !== undefined) {
+    descriptorValues.set(binding, values);
+    return;
+  }
+
+  const calleeBinding = scope.bindingId(init?.callee);
+  if (!init || init.type !== "CallExpression" || calleeBinding === undefined) {
+    return;
+  }
+
+  const descriptor = arrayOf<AnyNode>(init.arguments)[0];
+  if (defineMessageBindings.has(calleeBinding)) {
+    const defineMessageValues = idValuesFromDescriptor(descriptor, staticStrings);
+    if (defineMessageValues !== undefined) {
+      descriptorValues.set(binding, defineMessageValues);
+    }
+    return;
+  }
+
+  if (!defineMessagesBindings.has(calleeBinding) || descriptor?.type !== "ObjectExpression") {
+    return;
+  }
+
+  const members = collectDescriptorMembers(descriptor, staticStrings);
+  if (members.size > 0) {
+    descriptorMemberValues.set(binding, members);
+  }
+}
+
+function collectDescriptorMembers(
+  node: AnyNode,
+  staticStrings: StaticStringContext
+): Map<string, string[]> {
+  const members = new Map<string, string[]>();
+  for (const property of arrayOf<AnyNode>(node.properties)) {
+    const key = identifierName(property.key) ?? stringLiteral(property.key);
+    const values = idValuesFromDescriptor(property.value as AnyNode | undefined, staticStrings);
+    if (key && values !== undefined) {
+      members.set(key, values);
+    }
+  }
+
+  return members;
 }
 
 function usagesFromFormatMessage(
@@ -199,19 +225,52 @@ function usagesFromFormatMessage(
   source: string,
   filePath: string,
   staticStrings: StaticStringContext,
-  descriptorValues: DescriptorValues
+  descriptorValues: DescriptorValues,
+  descriptorMemberValues: DescriptorMemberValues,
+  scope: ReturnType<typeof createSourceScope>
 ): SourceUsage[] {
   const descriptor = arrayOf<AnyNode>(call.arguments)[0];
   const location = nodeLocation(call, source);
-  const ids =
-    idValuesFromDescriptor(descriptor, staticStrings) ??
-    descriptorValues.get(identifierName(descriptor) ?? "");
+  const ids = descriptorValuesFromExpression(
+    descriptor,
+    staticStrings,
+    descriptorValues,
+    descriptorMemberValues,
+    scope
+  );
 
   if (ids === undefined) {
     return [unresolvedUsage(call, descriptor, source, filePath, location, "call")];
   }
 
   return ids.map((id) => resolvedUsage(id, filePath, location, "call"));
+}
+
+function descriptorValuesFromExpression(
+  node: AnyNode | undefined,
+  staticStrings: StaticStringContext,
+  descriptorValues: DescriptorValues,
+  descriptorMemberValues: DescriptorMemberValues,
+  scope: ReturnType<typeof createSourceScope>
+): string[] | undefined {
+  return (
+    idValuesFromDescriptor(node, staticStrings) ??
+    descriptorValues.get(scope.bindingId(node) ?? -1) ??
+    descriptorMemberValuesFromExpression(node, descriptorMemberValues, scope)
+  );
+}
+
+function descriptorMemberValuesFromExpression(
+  node: AnyNode | undefined,
+  descriptorMemberValues: DescriptorMemberValues,
+  scope: ReturnType<typeof createSourceScope>
+): string[] | undefined {
+  const member = memberExpressionName(node, scope);
+  if (!member) {
+    return undefined;
+  }
+
+  return descriptorMemberValues.get(member.object)?.get(member.property);
 }
 
 function usagesFromFormattedMessage(
@@ -272,15 +331,16 @@ function resolveJsxAttributeValues(
 }
 
 function memberExpressionName(
-  node: AnyNode | undefined
-): { object: string; property: string } | null {
+  node: AnyNode | undefined,
+  scope: ReturnType<typeof createSourceScope>
+): { object: BindingId; property: string } | null {
   if (node?.type !== "MemberExpression") {
     return null;
   }
 
-  const object = identifierName(node.object);
-  const property = identifierName(node.property);
-  return object && property ? { object, property } : null;
+  const object = scope.bindingId(node.object);
+  const property = identifierName(node.property) ?? stringLiteral(node.property);
+  return object !== undefined && property ? { object, property } : null;
 }
 
 function resolvedUsage(

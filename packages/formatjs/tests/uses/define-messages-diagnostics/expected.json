@@ -1,0 +1,31 @@
+{
+  "options": {
+    "rules": {
+      "unresolved-dynamic-key": "warning"
+    }
+  },
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "key": "settings.missing"
+      },
+      {
+        "code": "missing-locale-key",
+        "key": "settings.onlyEn",
+        "locale": "es"
+      },
+      {
+        "code": "unused-translation-key",
+        "key": "settings.unused"
+      },
+      {
+        "code": "unresolved-dynamic-key",
+        "severity": "warning"
+      }
+    ]
+  }
+}

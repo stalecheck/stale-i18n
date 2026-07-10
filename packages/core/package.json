@@ -32,6 +32,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@typescript-eslint/scope-manager": "catalog:",
     "oxc-parser": "catalog:",
     "oxc-resolver": "catalog:"
   },

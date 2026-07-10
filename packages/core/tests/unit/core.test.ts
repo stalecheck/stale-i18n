@@ -5,8 +5,10 @@ import {
   collectStaticStringEnum,
   createDiagnostic,
   createResult,
+  createSourceScope,
   createStaticStringContext,
   discoverSourceFiles,
+  expandCatalogPattern,
   formatSourceTarget,
   sourceTargetExists,
   getRuleLevel,
@@ -122,6 +124,175 @@ describe("core result helpers", () => {
     expect(arrayOf<unknown>(undefined)).toEqual([]);
   });
 
+  it("distinguishes shadowed bindings and detects mutations with Oxc ASTs", () => {
+    const parsed = parseSource(
+      "src/app.tsx",
+      `
+        const id = "outer";
+        function inner() {
+          const id = "inner";
+          return id;
+        }
+        let mutable = "safe";
+        mutable = dynamic;
+        id;
+      `
+    );
+    const scope = createSourceScope(parsed.program as AnyNode);
+    const ids: AnyNode[] = [];
+    let mutableDeclaration: AnyNode | undefined;
+
+    walk(parsed.program, {
+      enter(node, parent) {
+        if (node.type === "Identifier" && node.name === "id") {
+          ids.push(node);
+        }
+        if (
+          node.type === "Identifier" &&
+          node.name === "mutable" &&
+          parent?.type === "VariableDeclarator"
+        ) {
+          mutableDeclaration = node;
+        }
+        return undefined;
+      }
+    });
+
+    expect(scope.bindingId(ids[0])).toBe(scope.bindingId(ids.at(-1)));
+    expect(scope.bindingId(ids[0])).not.toBe(scope.bindingId(ids[1]));
+    expect(scope.isConstant(ids[0])).toBe(true);
+    expect(scope.isStable(mutableDeclaration)).toBe(false);
+  });
+
+  it("detects direct, conditional, destructuring, compound, and update writes", () => {
+    const parsed = parseSource(
+      "src/writes.ts",
+      `
+        let stable = "stable";
+        let direct = "direct";
+        direct = dynamic;
+        let conditional = "conditional";
+        if (condition) conditional = dynamic;
+        let destructured = "destructured";
+        ({ value: destructured } = input);
+        let compound = "compound";
+        compound += suffix;
+        let logicalOr = "logicalOr";
+        logicalOr ||= fallback;
+        let logicalAnd = "logicalAnd";
+        logicalAnd &&= fallback;
+        let nullish = "nullish";
+        nullish ??= fallback;
+        let updated = 0;
+        updated++;
+      `
+    );
+    const scope = createSourceScope(parsed.program as AnyNode);
+    const declarations = new Map<string, AnyNode>();
+
+    walk(parsed.program, {
+      enter(node) {
+        if (node.type === "VariableDeclarator") {
+          const name = identifierName(node.id);
+          if (name) declarations.set(name, node.id as AnyNode);
+        }
+        return undefined;
+      }
+    });
+
+    expect(scope.isStable(declarations.get("stable"))).toBe(true);
+    for (const name of [
+      "direct",
+      "conditional",
+      "destructured",
+      "compound",
+      "logicalOr",
+      "logicalAnd",
+      "nullish",
+      "updated"
+    ]) {
+      expect(scope.isStable(declarations.get(name))).toBe(false);
+    }
+  });
+
+  it("tracks closure writes without poisoning a shadowed outer binding", () => {
+    const parsed = parseSource(
+      "src/closure-writes.ts",
+      `
+        const id = "outer";
+        let shared = "shared";
+        function mutateShared() {
+          shared = dynamic;
+        }
+        function mutateShadow() {
+          let id = "inner";
+          id = dynamic;
+          return id;
+        }
+        id;
+      `
+    );
+    const scope = createSourceScope(parsed.program as AnyNode);
+    const declarations = new Map<string, AnyNode[]>();
+
+    walk(parsed.program, {
+      enter(node) {
+        if (node.type === "VariableDeclarator") {
+          const name = identifierName(node.id);
+          if (name) declarations.set(name, [...(declarations.get(name) ?? []), node.id as AnyNode]);
+        }
+        return undefined;
+      }
+    });
+
+    expect(scope.isStable(declarations.get("shared")?.[0])).toBe(false);
+    expect(scope.isStable(declarations.get("id")?.[0])).toBe(true);
+    expect(scope.isStable(declarations.get("id")?.[1])).toBe(false);
+    expect(scope.bindingId(declarations.get("id")?.[0])).not.toBe(
+      scope.bindingId(declarations.get("id")?.[1])
+    );
+  });
+
+  it("resolves only immutable const bindings and restores static values across scopes", () => {
+    const parsed = parseSource(
+      "src/static-scopes.ts",
+      `
+        const key = "outer";
+        let mutableKey = "mutable";
+        function inner() {
+          const key = "inner";
+          return key;
+        }
+        key;
+      `
+    );
+    const scope = createSourceScope(parsed.program as AnyNode);
+    const context = createStaticStringContext(scope);
+    const keyNodes: AnyNode[] = [];
+    let mutableKey: AnyNode | undefined;
+
+    walk(parsed.program, {
+      enter(node, parent) {
+        if (node.type === "VariableDeclarator") {
+          collectStaticStringBinding(node, context);
+          if (identifierName(node.id) === "mutableKey") mutableKey = node.id as AnyNode;
+        }
+        if (
+          node.type === "Identifier" &&
+          node.name === "key" &&
+          (parent?.type === "ReturnStatement" || parent?.type === "ExpressionStatement")
+        ) {
+          keyNodes.push(node);
+        }
+        return undefined;
+      }
+    });
+
+    expect(resolveStaticStrings(keyNodes[0], context)).toEqual(["inner"]);
+    expect(resolveStaticStrings(keyNodes[1], context)).toEqual(["outer"]);
+    expect(resolveStaticStrings(mutableKey, context)).toBeUndefined();
+  });
+
   it("resolves static string literals, arrays, constants, templates, ternaries, and enums", () => {
     const source = `
       enum MessageId { Title = "title" }
@@ -233,6 +404,16 @@ describe("core result helpers", () => {
     expect(discoverSourceFiles(path.join(dir, "src", "**", "*.vue"))).toEqual([]);
   });
 
+  it("treats an existing path containing glob metacharacters as a literal directory", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-literal-magic-"));
+    const sourceDir = path.join(dir, "src[legacy]");
+    mkdirSync(sourceDir);
+    writeFileSync(path.join(sourceDir, "app.ts"), "export const app = 1;");
+
+    expect(sourceTargetExists(sourceDir)).toBe(true);
+    expect(discoverSourceFiles(sourceDir)).toEqual([path.join(sourceDir, "app.ts")]);
+  });
+
   it("applies ignorePaths globs to directory, file, and glob targets", () => {
     const dir = sourceDiscoveryFixture();
 
@@ -324,6 +505,28 @@ describe("core result helpers", () => {
     expect(formatSourceTarget([path.join(dir, "src"), path.join(dir, "missing-src")])).toBe(
       `${path.join(dir, "src")}, ${path.join(dir, "missing-src")}`
     );
+  });
+
+  it("expands catalog patterns and captures locale and namespace metadata", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-catalog-pattern-"));
+    const validFile = path.join(dir, "catalogs[legacy]", "checkout", "es-ES", "messages.json");
+    const repeatedFile = path.join(dir, "repeated", "en", "messages.en.json");
+    const mismatchFile = path.join(dir, "repeated", "fr", "messages.de.json");
+    mkdirSync(path.dirname(validFile), { recursive: true });
+    mkdirSync(path.dirname(repeatedFile), { recursive: true });
+    mkdirSync(path.dirname(mismatchFile), { recursive: true });
+    writeFileSync(validFile, "{}");
+    writeFileSync(repeatedFile, "{}");
+    writeFileSync(mismatchFile, "{}");
+
+    expect(
+      expandCatalogPattern(
+        path.join(dir, "catalogs[legacy]", "{namespace}", "{locale}", "messages.json")
+      )
+    ).toEqual([{ filePath: validFile, namespace: "checkout", locale: "es-ES" }]);
+    expect(
+      expandCatalogPattern(path.join(dir, "repeated", "{locale}", "messages.{locale}.json"))
+    ).toEqual([{ filePath: repeatedFile, locale: "en" }]);
   });
 
   it("returns no source files for missing literal targets", () => {

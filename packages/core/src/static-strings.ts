@@ -1,15 +1,22 @@
 import { arrayOf, identifierName, stringLiteral } from "./ast.js";
 import type { AnyNode } from "./types.js";
+import type { BindingId, SourceScope } from "./scope.js";
 
 export type StaticStringContext = {
   values: Map<string, string[]>;
   enums: Map<string, Map<string, string>>;
+  scope?: SourceScope;
+  scopedValues: Map<BindingId, string[]>;
+  scopedEnums: Map<BindingId, Map<string, string>>;
 };
 
-export function createStaticStringContext(): StaticStringContext {
+export function createStaticStringContext(scope?: SourceScope): StaticStringContext {
   return {
     values: new Map(),
-    enums: new Map()
+    enums: new Map(),
+    ...(scope === undefined ? {} : { scope }),
+    scopedValues: new Map(),
+    scopedEnums: new Map()
   };
 }
 
@@ -19,13 +26,24 @@ export function collectStaticStringBinding(declarator: AnyNode, context: StaticS
     return;
   }
 
-  const values = resolveStaticStrings(declarator.init as AnyNode | undefined, context);
-  if (values === undefined) {
-    context.values.delete(name);
+  const binding = context.scope?.bindingId(declarator.id);
+  if (
+    binding !== undefined &&
+    (!context.scope?.isConstant(declarator.id) || !context.scope.isStable(declarator.id))
+  ) {
+    context.scopedValues.delete(binding);
     return;
   }
 
-  context.values.set(name, values);
+  const values = resolveStaticStrings(declarator.init as AnyNode | undefined, context);
+  if (values === undefined) {
+    if (binding === undefined) context.values.delete(name);
+    else context.scopedValues.delete(binding);
+    return;
+  }
+
+  if (binding === undefined) context.values.set(name, values);
+  else context.scopedValues.set(binding, values);
 }
 
 export function collectStaticStringEnum(node: AnyNode, context: StaticStringContext) {
@@ -45,7 +63,9 @@ export function collectStaticStringEnum(node: AnyNode, context: StaticStringCont
   }
 
   if (members.size > 0) {
-    context.enums.set(enumName, members);
+    const binding = context.scope?.bindingId(node.id);
+    if (binding === undefined) context.enums.set(enumName, members);
+    else context.scopedEnums.set(binding, members);
   }
 }
 
@@ -63,7 +83,10 @@ export function resolveStaticStrings(
   }
 
   if (node.type === "Identifier") {
-    return context.values.get(identifierName(node) ?? "");
+    const binding = context.scope?.bindingId(node);
+    return binding === undefined
+      ? context.values.get(identifierName(node) ?? "")
+      : context.scopedValues.get(binding);
   }
 
   if (node.type === "ArrayExpression") {
@@ -134,13 +157,18 @@ function resolveMemberExpressionValues(
   node: AnyNode,
   context: StaticStringContext
 ): string[] | undefined {
-  const object = identifierName(node.object);
+  const objectNode = node.object as AnyNode | undefined;
+  const object = identifierName(objectNode);
   const property = identifierName(node.property) ?? stringLiteral(node.property);
   if (!object || !property) {
     return undefined;
   }
 
-  const value = context.enums.get(object)?.get(property);
+  const binding = context.scope?.bindingId(objectNode);
+  const value =
+    binding === undefined
+      ? context.enums.get(object)?.get(property)
+      : context.scopedEnums.get(binding)?.get(property);
   return value === undefined ? undefined : [value];
 }
 

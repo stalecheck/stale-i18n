@@ -1,13 +1,13 @@
 import {
   arrayOf,
   createDiagnostic,
+  expandCatalogPattern,
   identifierName,
   literalValue,
   parseSource,
   stringLiteral
 } from "@stale-i18n/core";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import path from "node:path";
+import { existsSync, readFileSync } from "node:fs";
 import type { CatalogConfigI18n } from "./catalog-config.js";
 import type {
   AnyNode,
@@ -22,10 +22,10 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
   const pathConfigs = catalogs.filter(isPathCatalog);
   const resourceConfigs = catalogs.filter(isResourceCatalog);
   const catalogPaths = pathConfigs.flatMap((catalog) =>
-    expandCatalogPattern(pathCatalogData(catalog)).map((filePath) => ({
-      filePath,
-      locale: typeof catalog === "string" ? undefined : catalog.locale,
-      namespace: typeof catalog === "string" ? undefined : catalog.namespace
+    expandCatalogPattern(pathCatalogData(catalog)).map((expanded) => ({
+      ...expanded,
+      configuredLocale: typeof catalog === "string" ? undefined : catalog.locale,
+      configuredNamespace: typeof catalog === "string" ? undefined : catalog.namespace
     }))
   );
   const entries: CatalogEntry[] = [];
@@ -34,10 +34,13 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
   const localesByNamespace = new Map<string, Set<string>>();
 
   for (const catalog of catalogPaths) {
-    const inferred = inferCatalogMeta(catalog.filePath, options.defaultNamespace ?? "translation");
     const meta = {
-      locale: catalog.locale ?? inferred.locale,
-      namespace: catalog.namespace ?? inferred.namespace
+      locale: catalog.configuredLocale ?? catalog.locale,
+      namespace:
+        catalog.configuredNamespace ??
+        catalog.namespace ??
+        options.defaultNamespace ??
+        "translation"
     };
     if (!existsSync(catalog.filePath)) {
       const diagnostic = createDiagnostic({
@@ -208,65 +211,6 @@ function unwrapExpression(node: AnyNode | undefined): AnyNode | undefined {
 
 function propertyKey(node: AnyNode | undefined): string | undefined {
   return identifierName(node) ?? stringLiteral(node);
-}
-
-function expandCatalogPattern(pattern: string): string[] {
-  if (!pattern.includes("{locale}") && !pattern.includes("{namespace}")) {
-    return [path.resolve(pattern)];
-  }
-
-  const absolutePattern = path.resolve(pattern);
-  const firstPlaceholder = absolutePattern.search(/\{(?:locale|namespace)\}/);
-  const root = firstPlaceholder === -1 ? path.dirname(absolutePattern) : fixedRoot(absolutePattern);
-  if (!existsSync(root)) {
-    return [absolutePattern.replace("{locale}", "*").replace("{namespace}", "*")];
-  }
-
-  const matcher = patternToRegExp(absolutePattern);
-  const files: string[] = [];
-  const visit = (dir: string) => {
-    for (const entry of readdirSync(dir)) {
-      const filePath = path.join(dir, entry);
-      const stat = statSync(filePath);
-      if (stat.isDirectory()) {
-        visit(filePath);
-      } else if (matcher.test(filePath)) {
-        files.push(filePath);
-      }
-    }
-  };
-  visit(root);
-  return files.sort();
-}
-
-function fixedRoot(pattern: string): string {
-  const parts = pattern.split(path.sep);
-  const rootParts: string[] = [];
-  for (const part of parts) {
-    if (part.includes("{locale}") || part.includes("{namespace}")) {
-      break;
-    }
-    rootParts.push(part);
-  }
-  return rootParts.length === 1 && rootParts[0] === "" ? path.sep : rootParts.join(path.sep);
-}
-
-function patternToRegExp(pattern: string): RegExp {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(
-    `^${escaped.replace("\\{locale\\}", "[^\\\\/]+").replace("\\{namespace\\}", "[^\\\\/]+")}$`
-  );
-}
-
-function inferCatalogMeta(
-  filePath: string,
-  defaultNamespace: string
-): { locale?: string; namespace: string } {
-  const parsed = path.parse(filePath);
-  return {
-    locale: path.basename(path.dirname(filePath)),
-    namespace: parsed.name || defaultNamespace
-  };
 }
 
 export function flattenCatalog(

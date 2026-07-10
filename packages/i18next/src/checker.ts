@@ -9,14 +9,13 @@ import {
   type CheckResult,
   type Diagnostic,
   type RuleCode,
-  type SourceUsage,
   type TranslationChecker
 } from "@stale-i18n/core";
 import { readFileSync } from "node:fs";
 import { readCatalogs } from "./catalogs.js";
 import { compareUsages } from "./comparison.js";
 import { analyzeProgram } from "./source-analysis.js";
-import type { AnyNode, I18nextCheckOptions } from "./types.js";
+import type { AnyNode, I18nextCheckOptions, I18nextSourceUsage } from "./types.js";
 
 export class I18nextChecker implements TranslationChecker<I18nextCheckOptions> {
   readonly name = "i18next";
@@ -48,7 +47,7 @@ export class I18nextChecker implements TranslationChecker<I18nextCheckOptions> {
           }),
       ...catalogResult.diagnostics
     ];
-    const usages: SourceUsage[] = [];
+    const usages: I18nextSourceUsage[] = [];
 
     for (const filePath of sourceFiles) {
       const source = readFileSync(filePath, "utf8");

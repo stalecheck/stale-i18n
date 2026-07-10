@@ -1,0 +1,18 @@
+{
+  "options": {
+    "rules": {
+      "unresolved-dynamic-key": "warning"
+    }
+  },
+  "result": {
+    "status": "SUCCESS",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "unresolved-dynamic-key",
+        "severity": "warning"
+      }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import type { BaseCheckOptions, Diagnostic } from "@stale-i18n/core";
+import type { BaseCheckOptions, Diagnostic, SourceUsage } from "@stale-i18n/core";
 import type { CatalogConfigI18n } from "./catalog-config.js";
 export type { AnyNode } from "@stale-i18n/core";
 export type { CatalogConfigI18n } from "./catalog-config.js";
@@ -21,6 +21,17 @@ export type TBinding = {
   namespace: string;
   keyPrefix?: string;
 };
+
+export type PluralUsage = {
+  context?: string;
+  ordinal: boolean;
+};
+
+export type I18nextSourceUsage =
+  | Extract<SourceUsage, { kind: "unresolved" }>
+  | (Extract<SourceUsage, { kind: "resolved" }> & {
+      plural?: PluralUsage;
+    });
 
 export type CatalogEntry = {
   key: string;

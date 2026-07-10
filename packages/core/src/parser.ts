@@ -9,7 +9,8 @@ export type ParseSourceResult = {
 
 export function parseSource(filePath: string, source: string): ParseSourceResult {
   const parsed = parseSync(filePath, source, {
-    sourceType: "module"
+    sourceType: "module",
+    range: true
   });
   if (parsed.errors.length === 0) {
     return { program: parsed.program, diagnostics: [] };

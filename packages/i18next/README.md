@@ -143,6 +143,11 @@ return <button>{t("submit")}</button>;
 It also supports simple aliases, fallback arrays, namespace options, key prefixes,
 and statically resolvable constants, templates, ternaries, and string enums.
 
+Calls with `count`, including `<Trans>` and `tOptions`, are checked as plural
+families. Existing cardinal or ordinal variants for that family are considered
+used in each locale, including context variants. The checker requires the family
+to exist in every locale, but does not require every plural category to be present.
+
 Dynamic expressions that cannot be enumerated safely are reported as
 `unresolved-dynamic-key`.
 

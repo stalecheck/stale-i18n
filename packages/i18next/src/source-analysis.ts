@@ -1,8 +1,8 @@
 import {
   arrayOf,
-  bindingNames,
   collectStaticStringBinding,
   collectStaticStringEnum,
+  createSourceScope,
   createStaticStringContext,
   getRuleLevel,
   identifierName,
@@ -13,113 +13,72 @@ import {
   stringLiteral,
   walk,
   type Diagnostic,
+  type BindingId,
   type SourceLocation,
-  type SourceUsage,
   type StaticStringContext
 } from "@stale-i18n/core";
 import { jsxAttributes } from "./jsx.js";
 import { rawUiTextDiagnostic } from "./raw-text.js";
-import type { AnyNode, I18nextCheckOptions, TBinding } from "./types.js";
+import type {
+  AnyNode,
+  I18nextCheckOptions,
+  I18nextSourceUsage,
+  PluralUsage,
+  TBinding
+} from "./types.js";
 
 export function analyzeProgram(
   program: AnyNode,
   source: string,
   filePath: string,
   options: I18nextCheckOptions
-): { usages: SourceUsage[]; diagnostics: Diagnostic[] } {
-  const useTranslationNames = new Set<string>();
-  const transNames = new Set<string>();
-  const i18nextObjectNames = new Set<string>();
-  const tBindings = new Map<string, TBinding>();
-  const tObjectBindings = new Map<string, TBinding>();
-  const staticStrings = createStaticStringContext();
-  const usages: SourceUsage[] = [];
+): { usages: I18nextSourceUsage[]; diagnostics: Diagnostic[] } {
+  const scope = createSourceScope(program);
+  const useTranslationBindings = new Set<BindingId>();
+  const transBindings = new Set<BindingId>();
+  const i18nextObjectBindings = new Set<BindingId>();
+  const tBindings = new Map<BindingId, TBinding>();
+  const tObjectBindings = new Map<BindingId, TBinding>();
+  const staticStrings = createStaticStringContext(scope);
+  const usages: I18nextSourceUsage[] = [];
   const diagnostics: Diagnostic[] = [];
 
   walk(program, {
-    enter(node, _parent, state) {
-      if (node.type === "ImportDeclaration" && literalValue(node.source) === "react-i18next") {
-        for (const specifier of arrayOf<AnyNode>(node.specifiers)) {
-          const imported = identifierName(specifier.imported);
-          const local = identifierName(specifier.local);
-          if (imported === "useTranslation" && local) {
-            useTranslationNames.add(local);
-          }
-          if (imported === "Trans" && local) {
-            transNames.add(local);
-          }
-        }
-      }
+    enter(node) {
+      collectImportedBindings(
+        node,
+        scope,
+        options,
+        useTranslationBindings,
+        transBindings,
+        i18nextObjectBindings,
+        tBindings
+      );
+      return undefined;
+    }
+  });
 
-      if (node.type === "ImportDeclaration" && literalValue(node.source) === "i18next") {
-        for (const specifier of arrayOf<AnyNode>(node.specifiers)) {
-          if (specifier.type === "ImportDefaultSpecifier") {
-            const local = identifierName(specifier.local);
-            if (local) i18nextObjectNames.add(local);
-          }
-          if (specifier.type === "ImportSpecifier" && identifierName(specifier.imported) === "t") {
-            const local = identifierName(specifier.local);
-            if (local) {
-              tBindings.set(local, { namespace: options.defaultNamespace ?? "translation" });
-            }
-          }
-        }
-      }
-
-      if (
-        node.type === "FunctionDeclaration" ||
-        node.type === "FunctionExpression" ||
-        node.type === "ArrowFunctionExpression"
-      ) {
-        const hidden = new Set(state.hidden);
-        for (const param of arrayOf<AnyNode>(node.params)) {
-          for (const name of bindingNames(param)) {
-            hidden.add(name);
-          }
-        }
-        return { hidden };
-      }
-
-      if (node.type === "BlockStatement") {
-        const hidden = hiddenBindingsForBlock(
-          node,
-          [
-            useTranslationNames,
-            transNames,
-            i18nextObjectNames,
-            new Set(tBindings.keys()),
-            new Set(tObjectBindings.keys())
-          ],
-          useTranslationNames
-        );
-        if (hidden.size > 0) {
-          return { hidden: new Set([...state.hidden, ...hidden]) };
-        }
-      }
-
+  walk(program, {
+    enter(node) {
       if (node.type === "VariableDeclarator") {
-        collectTBinding(
-          node,
-          useTranslationNames,
-          state.hidden,
-          tBindings,
-          tObjectBindings,
-          options
-        );
+        collectTBinding(node, useTranslationBindings, tBindings, tObjectBindings, options, scope);
         collectStaticStringBinding(node, staticStrings);
-      }
-
-      if (node.type === "TSEnumDeclaration") {
+      } else if (node.type === "TSEnumDeclaration") {
         collectStaticStringEnum(node, staticStrings);
       }
+      return undefined;
+    }
+  });
 
+  walk(program, {
+    enter(node) {
       if (node.type === "CallExpression") {
-        const calleeName = identifierName(node.callee);
-        if (calleeName && tBindings.has(calleeName) && !state.hidden.has(calleeName)) {
+        const calleeBinding = scope.bindingId(node.callee);
+        if (calleeBinding !== undefined && tBindings.has(calleeBinding)) {
           usages.push(
             ...usageFromTCall(
               node,
-              tBindings.get(calleeName)!,
+              tBindings.get(calleeBinding)!,
               source,
               filePath,
               options,
@@ -127,11 +86,10 @@ export function analyzeProgram(
             )
           );
         }
-        const member = memberExpressionName(node.callee as AnyNode | undefined);
+        const member = memberExpressionName(node.callee as AnyNode | undefined, scope);
         if (
           member?.property === "t" &&
-          (i18nextObjectNames.has(member.object) || tObjectBindings.has(member.object)) &&
-          !state.hidden.has(member.object)
+          (i18nextObjectBindings.has(member.object) || tObjectBindings.has(member.object))
         ) {
           usages.push(
             ...usageFromTCall(
@@ -150,8 +108,8 @@ export function analyzeProgram(
 
       if (isJsxMode(options) && node.type === "JSXElement") {
         const opening = node.openingElement as AnyNode | undefined;
-        const name = jsxName(opening?.name as AnyNode | undefined);
-        if (name && transNames.has(name) && !state.hidden.has(name)) {
+        const binding = scope.bindingId(opening?.name);
+        if (binding !== undefined && transBindings.has(binding)) {
           usages.push(...usagesFromTrans(node, source, filePath, options, staticStrings));
         }
       }
@@ -170,79 +128,84 @@ export function analyzeProgram(
   return { usages, diagnostics };
 }
 
+function collectImportedBindings(
+  node: AnyNode,
+  scope: ReturnType<typeof createSourceScope>,
+  options: I18nextCheckOptions,
+  useTranslationBindings: Set<BindingId>,
+  transBindings: Set<BindingId>,
+  i18nextObjectBindings: Set<BindingId>,
+  tBindings: Map<BindingId, TBinding>
+) {
+  if (node.type === "ImportDeclaration" && literalValue(node.source) === "react-i18next") {
+    for (const specifier of arrayOf<AnyNode>(node.specifiers)) {
+      const imported = identifierName(specifier.imported);
+      const local = scope.bindingId(specifier.local);
+      if (imported === "useTranslation" && local !== undefined) {
+        useTranslationBindings.add(local);
+      }
+      if (imported === "Trans" && local !== undefined) {
+        transBindings.add(local);
+      }
+    }
+  }
+
+  if (node.type === "ImportDeclaration" && literalValue(node.source) === "i18next") {
+    for (const specifier of arrayOf<AnyNode>(node.specifiers)) {
+      if (specifier.type === "ImportDefaultSpecifier") {
+        const local = scope.bindingId(specifier.local);
+        if (local !== undefined) i18nextObjectBindings.add(local);
+      }
+      if (specifier.type === "ImportSpecifier" && identifierName(specifier.imported) === "t") {
+        const local = scope.bindingId(specifier.local);
+        if (local !== undefined) {
+          tBindings.set(local, { namespace: options.defaultNamespace ?? "translation" });
+        }
+      }
+    }
+  }
+}
+
 function isJsxMode(options: I18nextCheckOptions): boolean {
   return (options.mode ?? "jsx") === "jsx";
 }
 
 function collectTBinding(
   declarator: AnyNode,
-  useTranslationNames: Set<string>,
-  hidden: Set<string>,
-  tBindings: Map<string, TBinding>,
-  tObjectBindings: Map<string, TBinding>,
-  options: I18nextCheckOptions
+  useTranslationBindings: Set<BindingId>,
+  tBindings: Map<BindingId, TBinding>,
+  tObjectBindings: Map<BindingId, TBinding>,
+  options: I18nextCheckOptions,
+  scope: ReturnType<typeof createSourceScope>
 ) {
   const init = declarator.init as AnyNode | undefined;
+  const calleeBinding = scope.bindingId(init?.callee);
   if (
     init?.type !== "CallExpression" ||
-    !useTranslationNames.has(identifierName(init.callee) ?? "") ||
-    hidden.has(identifierName(init.callee) ?? "")
+    calleeBinding === undefined ||
+    !useTranslationBindings.has(calleeBinding)
   ) {
     return;
   }
   const binding = bindingFromUseTranslation(init, options);
   const id = declarator.id as AnyNode | undefined;
-  const direct = identifierName(id);
-  if (direct) {
+  const direct = scope.bindingId(id);
+  if (direct !== undefined) {
     tObjectBindings.set(direct, binding);
   }
   if (id?.type === "ObjectPattern") {
     for (const property of arrayOf<AnyNode>(id.properties)) {
       if (identifierName(property.key) === "t") {
-        const local = identifierName(property.value);
-        if (local) tBindings.set(local, binding);
+        const local = scope.bindingId(property.value);
+        if (local !== undefined) tBindings.set(local, binding);
       }
     }
   }
   if (id?.type === "ArrayPattern") {
     const first = arrayOf<AnyNode>(id.elements)[0];
-    const local = identifierName(first);
-    if (local) tBindings.set(local, binding);
+    const local = scope.bindingId(first);
+    if (local !== undefined) tBindings.set(local, binding);
   }
-}
-
-function hiddenBindingsForBlock(
-  node: AnyNode,
-  trackedNames: Array<Set<string>>,
-  useTranslationNames: Set<string>
-): Set<string> {
-  const tracked = new Set(trackedNames.flatMap((names) => [...names]));
-  const hidden = new Set<string>();
-
-  for (const statement of arrayOf<AnyNode>(node.body)) {
-    if (statement.type !== "VariableDeclaration") {
-      continue;
-    }
-
-    for (const declarator of arrayOf<AnyNode>(statement.declarations)) {
-      const init = declarator.init as AnyNode | undefined;
-      if (
-        init?.type === "CallExpression" &&
-        useTranslationNames.has(identifierName(init.callee) ?? "")
-      ) {
-        continue;
-      }
-
-      const id = declarator.id as AnyNode | undefined;
-      for (const name of id ? bindingNames(id) : []) {
-        if (tracked.has(name)) {
-          hidden.add(name);
-        }
-      }
-    }
-  }
-
-  return hidden;
 }
 
 function bindingFromUseTranslation(call: AnyNode, options: I18nextCheckOptions): TBinding {
@@ -274,7 +237,7 @@ function usageFromTCall(
   filePath: string,
   options: I18nextCheckOptions,
   staticStrings: StaticStringContext
-): SourceUsage[] {
+): I18nextSourceUsage[] {
   const firstArg = arrayOf<AnyNode>(call.arguments)[0];
   const secondArg = arrayOf<AnyNode>(call.arguments)[1];
   const location = nodeLocation(call, source);
@@ -319,17 +282,21 @@ function usageFromTCall(
     ];
   }
 
-  const variants = keyVariantsFromOptions(secondArg);
+  const variant = keyVariantFromOptions(secondArg);
 
-  return keys.flatMap((key) => {
+  return keys.map((key) => {
     const resolved = resolveKey(key, binding, options, namespaceOverride);
-    return variants.map((variant) => ({
+    return {
       kind: "resolved" as const,
-      message: { id: applyKeyVariant(resolved.key, variant), namespace: resolved.namespace },
+      message: {
+        id: variant.plural ? resolved.key : applyContext(resolved.key, variant.context),
+        namespace: resolved.namespace
+      },
+      ...(variant.plural === undefined ? {} : { plural: variant.plural }),
       filePath,
       location,
       sourceKind: "call" as const
-    }));
+    };
   });
 }
 
@@ -339,7 +306,7 @@ function usagesFromTrans(
   filePath: string,
   options: I18nextCheckOptions,
   staticStrings: StaticStringContext
-): SourceUsage[] {
+): I18nextSourceUsage[] {
   const attrs = jsxAttributes(element);
   const keyAttribute = jsxAttributeNode(element, "i18nKey");
   if (!keyAttribute) {
@@ -363,16 +330,31 @@ function usagesFromTrans(
     ];
   }
 
-  return keys.map((key) => ({
-    kind: "resolved",
-    message: {
-      id: key,
-      namespace: attrs.get("ns") ?? options.defaultNamespace ?? "translation"
-    },
-    filePath,
-    location: nodeLocation(element, source),
-    sourceKind: "jsx-component"
-  }));
+  const tOptions = jsxObjectAttributeNode(element, "tOptions");
+  const optionVariant = keyVariantFromOptions(tOptions);
+  const hasCount = jsxAttributeNode(element, "count") !== undefined;
+  const context = attrs.get("context") ?? optionVariant.context;
+  const plural = hasCount
+    ? {
+        ...(context === undefined ? {} : { context }),
+        ordinal: optionVariant.plural?.ordinal ?? ordinalFromOptions(tOptions)
+      }
+    : optionVariant.plural;
+
+  return keys.map((key) => {
+    const id = plural ? key : applyContext(key, context);
+    return {
+      kind: "resolved",
+      message: {
+        id,
+        namespace: attrs.get("ns") ?? options.defaultNamespace ?? "translation"
+      },
+      ...(plural === undefined ? {} : { plural }),
+      filePath,
+      location: nodeLocation(element, source),
+      sourceKind: "jsx-component"
+    };
+  });
 }
 
 function resolveKey(
@@ -408,12 +390,12 @@ function namespaceOverrideFromOptions(node: AnyNode | undefined): string | false
 
 type KeyVariant = {
   context?: string | undefined;
-  pluralSuffix?: string | undefined;
+  plural?: PluralUsage;
 };
 
-function keyVariantsFromOptions(node: AnyNode | undefined): KeyVariant[] {
+function keyVariantFromOptions(node: AnyNode | undefined): KeyVariant {
   if (!node || node.type !== "ObjectExpression") {
-    return [{}];
+    return {};
   }
 
   const properties = arrayOf<AnyNode>(node.properties);
@@ -424,34 +406,40 @@ function keyVariantsFromOptions(node: AnyNode | undefined): KeyVariant[] {
     .find((value): value is string => typeof value === "string");
 
   if (hasCount) {
-    return ["one", "other"].map((plural) => ({
+    const ordinal = ordinalFromOptions(node);
+    return {
       ...(context === undefined ? {} : { context }),
-      pluralSuffix: plural
-    }));
+      plural: { ...(context === undefined ? {} : { context }), ordinal }
+    };
   }
 
-  return [
-    {
-      ...(context === undefined ? {} : { context })
-    }
-  ];
+  return { ...(context === undefined ? {} : { context }) };
 }
 
-function applyKeyVariant(key: string, variant: KeyVariant) {
-  const contextSuffix = variant.context === undefined ? "" : `_${variant.context}`;
-  const pluralSuffix = variant.pluralSuffix === undefined ? "" : `_${variant.pluralSuffix}`;
-  return `${key}${contextSuffix}${pluralSuffix}`;
+function ordinalFromOptions(node: AnyNode | undefined): boolean {
+  if (node?.type !== "ObjectExpression") {
+    return false;
+  }
+  return arrayOf<AnyNode>(node.properties).some(
+    (property) =>
+      identifierName(property.key) === "ordinal" && literalValue(property.value) === true
+  );
+}
+
+function applyContext(key: string, context: string | undefined) {
+  return context === undefined ? key : `${key}_${context}`;
 }
 
 function memberExpressionName(
-  node: AnyNode | undefined
-): { object: string; property: string } | null {
+  node: AnyNode | undefined,
+  scope: ReturnType<typeof createSourceScope>
+): { object: BindingId; property: string } | null {
   if (node?.type !== "MemberExpression") {
     return null;
   }
-  const object = identifierName(node.object);
+  const object = scope.bindingId(node.object);
   const property = identifierName(node.property);
-  return object && property ? { object, property } : null;
+  return object !== undefined && property ? { object, property } : null;
 }
 
 function nodeLocation(node: AnyNode, source: string): SourceLocation {
@@ -463,6 +451,16 @@ function jsxAttributeNode(element: AnyNode, name: string): AnyNode | undefined {
   return arrayOf<AnyNode>(opening?.attributes).find(
     (attribute) => jsxName(attribute.name as AnyNode | undefined) === name
   );
+}
+
+function jsxObjectAttributeNode(element: AnyNode, name: string): AnyNode | undefined {
+  const attribute = jsxAttributeNode(element, name);
+  const value = attribute?.value as AnyNode | undefined;
+  if (value?.type !== "JSXExpressionContainer") {
+    return undefined;
+  }
+  const expression = value.expression as AnyNode | undefined;
+  return expression?.type === "ObjectExpression" ? expression : undefined;
 }
 
 function resolveJsxAttributeValues(

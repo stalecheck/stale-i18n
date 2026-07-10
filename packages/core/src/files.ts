@@ -19,7 +19,7 @@ export function sourceTargetExists(target: SourceTarget): boolean {
       return false;
     }
     const globTarget = sourceTargetGlob(sourceTarget);
-    return globSync(globTarget.pattern, { cwd: globTarget.cwd }).length > 0;
+    return globSync(globTarget.pattern).length > 0;
   });
 }
 
@@ -35,20 +35,16 @@ function sourceTargets(target: SourceTarget): string[] {
 
 function discoverSourceTargetFiles(target: string, ignorePaths: string[]): string[] {
   const absoluteTarget = path.resolve(target);
-  if (!existsSync(absoluteTarget)) {
-    if (!hasGlobMagic(target)) {
-      return [];
-    }
-    const globTarget = sourceTargetGlob(target);
-    return sourceFileGlob(globTarget.pattern, globTarget.cwd, globTarget.cwd, ignorePaths);
+  if (existsSync(absoluteTarget)) {
+    return discoverLiteralSourceTargetFiles(absoluteTarget, ignorePaths);
   }
 
-  if (hasGlobMagic(target)) {
-    const globTarget = sourceTargetGlob(target);
-    return sourceFileGlob(globTarget.pattern, globTarget.cwd, globTarget.cwd, ignorePaths);
+  if (!hasGlobMagic(target)) {
+    return [];
   }
 
-  return discoverLiteralSourceTargetFiles(absoluteTarget, ignorePaths);
+  const globTarget = sourceTargetGlob(target);
+  return sourceFileGlob(globTarget.pattern, undefined, globTarget.root, ignorePaths);
 }
 
 function discoverLiteralSourceTargetFiles(absoluteTarget: string, ignorePaths: string[]): string[] {
@@ -78,12 +74,12 @@ function isSourceFile(filePath: string): boolean {
 
 function sourceFileGlob(
   pattern: string,
-  cwd: string,
+  cwd: string | undefined,
   ignoreRoot: string,
   ignorePaths: string[]
 ): string[] {
-  return globSync(pattern, { cwd })
-    .map((filePath) => path.resolve(cwd, filePath))
+  return globSync(pattern, cwd === undefined ? {} : { cwd })
+    .map((filePath) => path.resolve(cwd ?? process.cwd(), filePath))
     .filter((filePath) => statSync(filePath).isFile())
     .filter((filePath) => !isIgnoredPath(filePath, ignoreRoot, ignorePaths))
     .sort();
@@ -129,12 +125,11 @@ function effectiveIgnorePaths(ignorePaths: string[] | undefined): string[] {
   return ignorePaths ?? ["**/node_modules/**", "**/dist/**", "**/coverage/**"];
 }
 
-function sourceTargetGlob(target: string): { cwd: string; pattern: string } {
+function sourceTargetGlob(target: string): { root: string; pattern: string } {
   const absoluteTarget = path.resolve(target);
-  const cwd = fixedGlobRoot(absoluteTarget);
   return {
-    cwd,
-    pattern: normalizeGlobPath(path.relative(cwd, absoluteTarget))
+    root: fixedGlobRoot(absoluteTarget),
+    pattern: normalizeGlobPath(absoluteTarget)
   };
 }
 
