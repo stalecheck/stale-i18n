@@ -3,11 +3,11 @@ import {
   createDiagnostic,
   expandCatalogPattern
 } from "@stale-i18n/core";
-import { existsSync, readFileSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { CatalogEntry, CatalogReadResult, ParaglideCheckOptions } from "./types.js";
 
-export function readCatalogs(options: ParaglideCheckOptions): CatalogReadResult {
+export async function readCatalogs(options: ParaglideCheckOptions): Promise<CatalogReadResult> {
   const patterns = Array.isArray(options.catalogs) ? options.catalogs : [options.catalogs];
   const entries: CatalogEntry[] = [];
   const diagnostics = [];
@@ -23,26 +23,30 @@ export function readCatalogs(options: ParaglideCheckOptions): CatalogReadResult 
       })
     );
   }
-  const catalogPaths = patterns.flatMap((pattern) => {
-    const matches = expandCatalogPattern(pattern);
-    if (matches.length === 0) {
-      diagnostics.push(
-        createConfigurationDiagnostic({
-          code: "catalog-target-not-found",
-          message: `Catalog target was not found: ${pattern}`,
-          filePath: path.resolve(pattern),
-          line: 1,
-          column: 1
-        })
-      );
+  const catalogPaths = (await Promise.all(patterns.map(expandCatalogPattern))).flatMap(
+    (matches, index) => {
+      const pattern = patterns[index]!;
+      if (matches.length === 0) {
+        diagnostics.push(
+          createConfigurationDiagnostic({
+            code: "catalog-target-not-found",
+            message: `Catalog target was not found: ${pattern}`,
+            filePath: path.resolve(pattern),
+            line: 1,
+            column: 1
+          })
+        );
+      }
+      return matches;
     }
-    return matches;
-  });
+  );
 
   for (const catalog of catalogPaths) {
     const catalogPath = catalog.filePath;
     const locale = catalog.locale ?? path.parse(catalogPath).name;
-    if (!existsSync(catalogPath)) {
+    try {
+      if (!(await stat(catalogPath)).isFile()) throw new Error("Catalog file not found");
+    } catch {
       const diagnostic = createDiagnostic({
         code: "catalog-file-not-found",
         rules: options.rules,
@@ -57,7 +61,7 @@ export function readCatalogs(options: ParaglideCheckOptions): CatalogReadResult 
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(catalogPath, "utf8")) as unknown;
+      const parsed = JSON.parse(await readFile(catalogPath, "utf8")) as unknown;
       locales.add(locale);
       entries.push(...flattenCatalog(parsed, catalogPath, locale));
     } catch (error) {

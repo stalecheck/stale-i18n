@@ -6,7 +6,7 @@ import { readCatalogs } from "../../src/catalogs.js";
 import { ParaglideChecker } from "../../src/checker.js";
 
 describe("Paraglide catalog path metadata", () => {
-  it("captures locale from its placeholder instead of the file name", () => {
+  it("captures locale from its placeholder instead of the file name", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "paraglide-catalog-layout-"));
     for (const locale of ["en", "es"]) {
       const filePath = path.join(root, "messages", locale, "catalog.json");
@@ -14,7 +14,7 @@ describe("Paraglide catalog path metadata", () => {
       writeFileSync(filePath, JSON.stringify({ title: locale }));
     }
 
-    const result = readCatalogs({
+    const result = await readCatalogs({
       target: path.join(root, "src"),
       catalogs: path.join(root, "messages", "{locale}", "catalog.json")
     });
@@ -28,7 +28,7 @@ describe("Paraglide catalog path metadata", () => {
     );
   });
 
-  it("fails configuration when an existing catalog root has no matches", () => {
+  it("fails configuration when an existing catalog root has no matches", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "paraglide-empty-catalog-root-"));
     const target = path.join(root, "src");
     const catalogRoot = path.join(root, "messages");
@@ -36,7 +36,7 @@ describe("Paraglide catalog path metadata", () => {
     mkdirSync(target, { recursive: true });
     mkdirSync(catalogRoot, { recursive: true });
 
-    const result = new ParaglideChecker({ target, catalogs: pattern }).checkSync();
+    const result = await new ParaglideChecker({ target, catalogs: pattern }).check();
 
     expect(result).toEqual({
       status: "FAIL",
@@ -52,12 +52,12 @@ describe("Paraglide catalog path metadata", () => {
     });
   });
 
-  it("fails configuration when the catalog target list is empty", () => {
+  it("fails configuration when the catalog target list is empty", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "paraglide-empty-catalog-list-"));
     const target = path.join(root, "src");
     mkdirSync(target, { recursive: true });
 
-    const result = new ParaglideChecker({ target, catalogs: [] }).checkSync();
+    const result = await new ParaglideChecker({ target, catalogs: [] }).check();
 
     expect(result).toEqual(
       expect.objectContaining({

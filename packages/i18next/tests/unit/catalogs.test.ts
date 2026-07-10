@@ -14,8 +14,8 @@ function writeCatalog(root: string, relativePath: string, key = "title") {
   writeFileSync(filePath, JSON.stringify({ [key]: relativePath }));
 }
 
-function readPattern(root: string, pattern: string) {
-  return readCatalogs({
+async function readPattern(root: string, pattern: string) {
+  return await readCatalogs({
     target: path.join(root, "src"),
     catalogs: path.join(root, pattern)
   });
@@ -136,11 +136,11 @@ describe("i18next catalog path metadata", () => {
       namespace: "orders",
       locale: "ca-ES"
     }
-  ])("extracts metadata from $name", ({ pattern, file, namespace, locale }) => {
+  ])("extracts metadata from $name", async ({ pattern, file, namespace, locale }) => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-catalog-layout-"));
     writeCatalog(root, file);
 
-    const result = readPattern(root, pattern);
+    const result = await readPattern(root, pattern);
 
     expect(result.diagnostics).toEqual([]);
     expect(result.entries).toEqual([
@@ -149,22 +149,22 @@ describe("i18next catalog path metadata", () => {
     expect(result.localesByNamespace.get(namespace)).toEqual(new Set([locale]));
   });
 
-  it("uses the default namespace when a placeholder pattern only declares locale", () => {
+  it("uses the default namespace when a placeholder pattern only declares locale", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-locale-only-"));
     writeCatalog(root, path.join("messages", "fr.catalog.json"));
 
-    const result = readPattern(root, path.join("messages", "{locale}.catalog.json"));
+    const result = await readPattern(root, path.join("messages", "{locale}.catalog.json"));
 
     expect(result.entries).toEqual([
       expect.objectContaining({ key: "title", namespace: "translation", locale: "fr" })
     ]);
   });
 
-  it("leaves locale undefined when a placeholder pattern only declares namespace", () => {
+  it("leaves locale undefined when a placeholder pattern only declares namespace", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-namespace-only-"));
     writeCatalog(root, path.join("messages", "checkout.bundle.json"));
 
-    const result = readPattern(root, path.join("messages", "{namespace}.bundle.json"));
+    const result = await readPattern(root, path.join("messages", "{namespace}.bundle.json"));
 
     expect(result.entries).toEqual([
       expect.objectContaining({ key: "title", namespace: "checkout" })
@@ -172,12 +172,12 @@ describe("i18next catalog path metadata", () => {
     expect(result.entries[0]).not.toHaveProperty("locale");
   });
 
-  it("does not invent locale or namespace metadata for a literal catalog path", () => {
+  it("does not invent locale or namespace metadata for a literal catalog path", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-literal-catalog-"));
     const file = path.join("anything", "invented", "layout.data.json");
     writeCatalog(root, file);
 
-    const result = readPattern(root, file);
+    const result = await readPattern(root, file);
 
     expect(result.entries).toEqual([
       expect.objectContaining({ key: "title", namespace: "translation" })
@@ -185,14 +185,14 @@ describe("i18next catalog path metadata", () => {
     expect(result.entries[0]).not.toHaveProperty("locale");
   });
 
-  it("respects a custom default namespace for locale-only patterns and literal paths", () => {
+  it("respects a custom default namespace for locale-only patterns and literal paths", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-custom-default-"));
     const patternedFile = path.join("by-locale", "eu.json");
     const literalFile = path.join("strange", "tree", "catalog.payload.json");
     writeCatalog(root, patternedFile, "patterned");
     writeCatalog(root, literalFile, "literal");
 
-    const result = readCatalogs({
+    const result = await readCatalogs({
       target: path.join(root, "src"),
       catalogs: [path.join(root, "by-locale", "{locale}.json"), path.join(root, literalFile)],
       defaultNamespace: "application"
@@ -206,11 +206,11 @@ describe("i18next catalog path metadata", () => {
     );
   });
 
-  it("lets explicit path config metadata override both captured placeholders", () => {
+  it("lets explicit path config metadata override both captured placeholders", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-explicit-meta-"));
     writeCatalog(root, path.join("captured-ns", "captured-locale.json"));
 
-    const result = readCatalogs({
+    const result = await readCatalogs({
       target: path.join(root, "src"),
       catalogs: {
         type: "path",
@@ -226,13 +226,13 @@ describe("i18next catalog path metadata", () => {
     expect(result.localesByNamespace.get("configured-ns")).toEqual(new Set(["configured-locale"]));
   });
 
-  it("keeps metadata isolated across an array of unrelated catalog layouts", () => {
+  it("keeps metadata isolated across an array of unrelated catalog layouts", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-mixed-layouts-"));
     writeCatalog(root, path.join("ui", "checkout", "es.json"), "checkout.title");
     writeCatalog(root, path.join("server", "en-US--errors", "payload.json"), "server.error");
     writeCatalog(root, path.join("legacy", "fr.common.bundle.json"), "legacy.title");
 
-    const result = readCatalogs({
+    const result = await readCatalogs({
       target: path.join(root, "src"),
       catalogs: [
         path.join(root, "ui", "{namespace}", "{locale}.json"),
@@ -252,12 +252,12 @@ describe("i18next catalog path metadata", () => {
     expect(result.catalogsChecked).toBe(3);
   });
 
-  it("requires repeated locale and namespace placeholders to capture identical values", () => {
+  it("requires repeated locale and namespace placeholders to capture identical values", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-repeated-placeholders-"));
     writeCatalog(root, path.join("en", "common", "common.en.json"), "valid");
     writeCatalog(root, path.join("en", "common", "other.fr.json"), "invalid");
 
-    const result = readPattern(
+    const result = await readPattern(
       root,
       path.join("{locale}", "{namespace}", "{namespace}.{locale}.json")
     );
@@ -268,14 +268,14 @@ describe("i18next catalog path metadata", () => {
     expect(result.catalogsChecked).toBe(1);
   });
 
-  it("does not match extra nesting or near-miss filename suffixes", () => {
+  it("does not match extra nesting or near-miss filename suffixes", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-near-misses-"));
     writeCatalog(root, path.join("catalogs", "common", "en.json"), "valid");
     writeCatalog(root, path.join("catalogs", "common", "nested", "en.json"), "too-deep");
     writeCatalog(root, path.join("catalogs", "common", "es.json.backup"), "backup");
     writeCatalog(root, path.join("catalogs", "common-copy", "fr.txt"), "wrong-extension");
 
-    const result = readPattern(root, path.join("catalogs", "{namespace}", "{locale}.json"));
+    const result = await readPattern(root, path.join("catalogs", "{namespace}", "{locale}.json"));
 
     expect(result.entries).toEqual([
       expect.objectContaining({ key: "valid", namespace: "common", locale: "en" })
@@ -283,7 +283,7 @@ describe("i18next catalog path metadata", () => {
     expect(result.catalogsChecked).toBe(1);
   });
 
-  it("fails configuration when an existing catalog root has no matches", () => {
+  it("fails configuration when an existing catalog root has no matches", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-empty-catalog-root-"));
     const target = path.join(root, "src");
     const catalogRoot = path.join(root, "locales");
@@ -291,7 +291,7 @@ describe("i18next catalog path metadata", () => {
     mkdirSync(target, { recursive: true });
     mkdirSync(catalogRoot, { recursive: true });
 
-    const result = new I18nextChecker({ target, catalogs: pattern }).checkSync();
+    const result = await new I18nextChecker({ target, catalogs: pattern }).check();
 
     expect(result).toEqual({
       status: "FAIL",
@@ -307,12 +307,12 @@ describe("i18next catalog path metadata", () => {
     });
   });
 
-  it("fails configuration when the catalog target list is empty", () => {
+  it("fails configuration when the catalog target list is empty", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "i18next-empty-catalog-list-"));
     const target = path.join(root, "src");
     mkdirSync(target, { recursive: true });
 
-    const result = new I18nextChecker({ target, catalogs: [] }).checkSync();
+    const result = await new I18nextChecker({ target, catalogs: [] }).check();
 
     expect(result).toEqual(
       expect.objectContaining({
@@ -331,7 +331,7 @@ describe("i18next catalog path metadata", () => {
 });
 
 describe("i18next source analysis phases", () => {
-  it("collects useTranslation imports before bindings regardless of AST order", () => {
+  it("collects useTranslation imports before bindings regardless of AST order", async () => {
     const source = `
 const { t } = useTranslation("checkout");
 export const title = t("title");
@@ -354,7 +354,7 @@ import { useTranslation } from "react-i18next";
     ]);
   });
 
-  it("does not replace a dynamic namespace or keyPrefix with the defaults", () => {
+  it("does not replace a dynamic namespace or keyPrefix with the defaults", async () => {
     const source = `
 import { useTranslation } from "react-i18next";
 declare const namespace: string;
@@ -376,7 +376,7 @@ t("title");
     ]);
   });
 
-  it("enumerates finite static namespaces, key prefixes and contexts", () => {
+  it("enumerates finite static namespaces, key prefixes and contexts", async () => {
     const source = `
 import { useTranslation } from "react-i18next";
 declare const enabled: boolean;
@@ -410,7 +410,7 @@ t("title", { context });
     );
   });
 
-  it("reports dynamic Trans namespace and context instead of using defaults", () => {
+  it("reports dynamic Trans namespace and context instead of using defaults", async () => {
     const source = `
 import { Trans } from "react-i18next";
 declare const namespace: string;

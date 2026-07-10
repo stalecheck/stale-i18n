@@ -72,12 +72,12 @@ function getUseCases(dir: string = usesDir, prefix = ""): UseCase[] {
 }
 
 function checkCase(caseDir: string, options: Partial<FormatjsCheckOptions> = {}) {
-  return new FormatjsChecker(buildOptions(caseDir, options)).checkSync();
+  return new FormatjsChecker(buildOptions(caseDir, options)).check();
 }
 
 async function checkUseCase(useCase: UseCase) {
   const checker = new FormatjsChecker(buildOptions(useCase.dir, useCase.expected.options));
-  return useCase.expected.api === "async" ? checker.check() : checker.checkSync();
+  return useCase.expected.api === "async" ? checker.check() : checker.check();
 }
 
 function checkRuleLevel(
@@ -157,18 +157,18 @@ describe("formatjs public API use cases", () => {
         ...options
       };
 
-      it(`${useCase.name} rule is off`, () => {
+      it(`${useCase.name} rule is off`, async () => {
         expect(RULE_DEFINITIONS[code]).toEqual(expect.objectContaining({ code }));
 
-        const result = checkRuleLevel(useCase.dir, code, "off", ruleLevelOptions);
+        const result = await checkRuleLevel(useCase.dir, code, "off", ruleLevelOptions);
 
         expect(result.diagnostics).not.toEqual(
           expect.arrayContaining([expect.objectContaining({ code })])
         );
       });
 
-      it(`${useCase.name} rule is warning`, () => {
-        const result = checkRuleLevel(useCase.dir, code, "warning", ruleLevelOptions);
+      it(`${useCase.name} rule is warning`, async () => {
+        const result = await checkRuleLevel(useCase.dir, code, "warning", ruleLevelOptions);
 
         expectResult(result, {
           status: "SUCCESS",
@@ -176,8 +176,8 @@ describe("formatjs public API use cases", () => {
         });
       });
 
-      it(`${useCase.name} rule is error`, () => {
-        const result = checkRuleLevel(useCase.dir, code, "error", ruleLevelOptions);
+      it(`${useCase.name} rule is error`, async () => {
+        const result = await checkRuleLevel(useCase.dir, code, "error", ruleLevelOptions);
 
         expectResult(result, {
           status: "FAIL",
@@ -190,8 +190,8 @@ describe("formatjs public API use cases", () => {
 
     if (useCase.expected.variants !== undefined) {
       for (const variant of useCase.expected.variants) {
-        it(`${useCase.name} ${variant.name}`, () => {
-          expectResult(checkCase(useCase.dir, variant.options), variant.result);
+        it(`${useCase.name} ${variant.name}`, async () => {
+          expectResult(await checkCase(useCase.dir, variant.options), variant.result);
         });
       }
 

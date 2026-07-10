@@ -32,15 +32,6 @@ const result = await new FormatjsChecker({
 }).check();
 ```
 
-Use `checkSync()` when you need a synchronous result:
-
-```ts
-const result = new FormatjsChecker({
-  target: "src",
-  catalogs: "locales/{locale}.json"
-}).checkSync();
-```
-
 ## Options
 
 ```ts

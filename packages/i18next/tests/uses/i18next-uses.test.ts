@@ -197,14 +197,14 @@ function expectResult(result: CheckResult, expected: ResultExpectation = {}) {
 }
 
 function checkCase(caseDir: string, options: RawJsonOptions = {}) {
-  return new I18nextChecker(buildOptions(caseDir, options)).checkSync();
+  return new I18nextChecker(buildOptions(caseDir, options)).check();
 }
 
 async function checkUseCase(useCase: UseCase) {
   const checker = new I18nextChecker(
     await buildUseCaseOptions(useCase.dir, useCase.expected.options, useCase.expected)
   );
-  return useCase.expected.api === "async" ? checker.check() : checker.checkSync();
+  return useCase.expected.api === "async" ? checker.check() : checker.check();
 }
 
 async function buildUseCaseOptions(
@@ -256,18 +256,18 @@ describe("i18next public API use cases", () => {
         ...options
       };
 
-      it(`${useCase.name} rule is off`, () => {
+      it(`${useCase.name} rule is off`, async () => {
         expect(RULE_DEFINITIONS[code]).toEqual(expect.objectContaining({ code }));
 
-        const result = checkRuleLevel(useCase.dir, code, "off", ruleLevelOptions);
+        const result = await checkRuleLevel(useCase.dir, code, "off", ruleLevelOptions);
 
         expect(result.diagnostics).not.toEqual(
           expect.arrayContaining([expect.objectContaining({ code })])
         );
       });
 
-      it(`${useCase.name} rule is warning`, () => {
-        const result = checkRuleLevel(useCase.dir, code, "warning", ruleLevelOptions);
+      it(`${useCase.name} rule is warning`, async () => {
+        const result = await checkRuleLevel(useCase.dir, code, "warning", ruleLevelOptions);
 
         expectResult(result, {
           status: "SUCCESS",
@@ -275,8 +275,8 @@ describe("i18next public API use cases", () => {
         });
       });
 
-      it(`${useCase.name} rule is error`, () => {
-        const result = checkRuleLevel(useCase.dir, code, "error", ruleLevelOptions);
+      it(`${useCase.name} rule is error`, async () => {
+        const result = await checkRuleLevel(useCase.dir, code, "error", ruleLevelOptions);
 
         expectResult(result, {
           status: "FAIL",
@@ -289,8 +289,8 @@ describe("i18next public API use cases", () => {
 
     if (useCase.expected.variants !== undefined) {
       for (const variant of useCase.expected.variants) {
-        it(`${useCase.name} ${variant.name}`, () => {
-          const result = checkCase(useCase.dir, variant.options);
+        it(`${useCase.name} ${variant.name}`, async () => {
+          const result = await checkCase(useCase.dir, variant.options);
 
           expectResult(result, variant.result);
         });
@@ -310,8 +310,8 @@ describe("i18next public API use cases", () => {
 describe("i18next conservative plural families", () => {
   const fixturesDir = path.join(usesDir, "..", "fixtures");
 
-  it("accepts partial, locale-specific, contextual, ordinal and Trans plural families", () => {
-    const result = checkCase(path.join(fixturesDir, "plural-families-success"));
+  it("accepts partial, locale-specific, contextual, ordinal and Trans plural families", async () => {
+    const result = await checkCase(path.join(fixturesDir, "plural-families-success"));
 
     expect(result).toEqual({
       status: "SUCCESS",
@@ -321,8 +321,8 @@ describe("i18next conservative plural families", () => {
     });
   });
 
-  it("reports only a family missing from a locale or from every catalog", () => {
-    const result = checkCase(path.join(fixturesDir, "plural-family-missing"));
+  it("reports only a family missing from a locale or from every catalog", async () => {
+    const result = await checkCase(path.join(fixturesDir, "plural-family-missing"));
 
     expect(
       result.diagnostics.map(({ code, key, locale }) => ({
@@ -343,8 +343,8 @@ describe("i18next conservative plural families", () => {
     ]);
   });
 
-  it("does not consume a non-plural key that merely shares the prefix", () => {
-    const result = checkCase(path.join(fixturesDir, "plural-family-lookalike"));
+  it("does not consume a non-plural key that merely shares the prefix", async () => {
+    const result = await checkCase(path.join(fixturesDir, "plural-family-lookalike"));
 
     expect(result.diagnostics.map(({ code, key }) => ({ code, key }))).toEqual([
       { code: "unused-translation-key", key: "items_archive" }

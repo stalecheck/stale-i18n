@@ -8,7 +8,7 @@ import {
   parseSource,
   stringLiteral
 } from "@stale-i18n/core";
-import { existsSync, readFileSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { CatalogConfigI18n } from "./catalog-config.js";
 import {
@@ -26,7 +26,7 @@ import type {
   I18nextCheckOptions
 } from "./types.js";
 
-export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
+export async function readCatalogs(options: I18nextCheckOptions): Promise<CatalogReadResult> {
   const catalogs = Array.isArray(options.catalogs) ? options.catalogs : [options.catalogs];
   const diagnostics = [];
   if (catalogs.length === 0) {
@@ -42,9 +42,11 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
   }
   const pathConfigs = catalogs.filter(isPathCatalog);
   const resourceConfigs = catalogs.filter(isResourceCatalog);
-  const catalogPaths = pathConfigs.flatMap((catalog) => {
+  const catalogPaths = (
+    await Promise.all(pathConfigs.map((catalog) => expandCatalogPattern(pathCatalogData(catalog))))
+  ).flatMap((matches, index) => {
+    const catalog = pathConfigs[index]!;
     const pattern = pathCatalogData(catalog);
-    const matches = expandCatalogPattern(pattern);
     if (matches.length === 0) {
       diagnostics.push(
         createConfigurationDiagnostic({
@@ -75,7 +77,9 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
         options.defaultNamespace ??
         "translation"
     };
-    if (!existsSync(catalog.filePath)) {
+    try {
+      if (!(await stat(catalog.filePath)).isFile()) throw new Error("Catalog file not found");
+    } catch {
       const diagnostic = createDiagnostic({
         code: "catalog-file-not-found",
         rules: options.rules,
@@ -90,7 +94,7 @@ export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
     }
 
     try {
-      const parsed = readCatalogFile(catalog.filePath);
+      const parsed = await readCatalogFile(catalog.filePath);
       validNamespaces.add(meta.namespace);
       if (meta.locale) {
         const locales = localesByNamespace.get(meta.namespace) ?? new Set<string>();
@@ -167,8 +171,8 @@ function virtualCatalogPath(namespace: string, locale: string | undefined): stri
   return `i18next://${locale ?? "unknown"}/${namespace}`;
 }
 
-function readCatalogFile(filePath: string): unknown {
-  const source = readFileSync(filePath, "utf8");
+async function readCatalogFile(filePath: string): Promise<unknown> {
+  const source = await readFile(filePath, "utf8");
   if (/\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(filePath)) {
     return readStaticModuleCatalog(filePath, source);
   }

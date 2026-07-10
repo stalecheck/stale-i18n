@@ -13,7 +13,7 @@ import {
   type SourceUsage,
   type TranslationChecker
 } from "@stale-i18n/core";
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { readCatalogs } from "./catalogs.js";
 import { compareUsages } from "./comparison.js";
 import { analyzeProgram } from "./source-analysis.js";
@@ -28,15 +28,13 @@ export class FormatjsChecker implements TranslationChecker<FormatjsCheckOptions>
   }
 
   async check(options?: Partial<FormatjsCheckOptions>): Promise<CheckResult> {
-    return this.checkSync(options);
-  }
-
-  checkSync(options?: Partial<FormatjsCheckOptions>): CheckResult {
     const merged = { ...this.options, ...options };
     const target = merged.target ?? process.cwd();
-    const targetExists = sourceTargetExists(target);
-    const sourceFiles = discoverSourceFiles(target, merged.ignorePaths);
-    const catalogResult = readCatalogs(merged);
+    const [targetExists, sourceFiles, catalogResult] = await Promise.all([
+      sourceTargetExists(target),
+      discoverSourceFiles(target, merged.ignorePaths),
+      readCatalogs(merged)
+    ]);
     const diagnostics: Array<Diagnostic | null> = [
       targetExists
         ? null
@@ -52,7 +50,7 @@ export class FormatjsChecker implements TranslationChecker<FormatjsCheckOptions>
     const usages: SourceUsage[] = [];
 
     for (const filePath of sourceFiles) {
-      const source = readFileSync(filePath, "utf8");
+      const source = await readFile(filePath, "utf8");
       const parsed = parseSource(filePath, source);
       diagnostics.push(
         ...parsed.diagnostics.map((diagnostic) =>

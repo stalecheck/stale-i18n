@@ -67,7 +67,6 @@ export interface TranslationChecker<TOptions extends BaseCheckOptions = BaseChec
   readonly options: Readonly<TOptions>;
 
   check(options?: Partial<TOptions>): Promise<CheckResult>;
-  checkSync(options?: Partial<TOptions>): CheckResult;
 }
 
 export type MessageId = {

@@ -27,7 +27,7 @@ import path from "node:path";
 import type { AnyNode, SourceUsage } from "@stale-i18n/core";
 
 describe("core result helpers", () => {
-  it("marks results with errors as FAIL and warning-only results as SUCCESS", () => {
+  it("marks results with errors as FAIL and warning-only results as SUCCESS", async () => {
     const warning = createDiagnostic({
       code: "unused-translation-key",
       rules: { "unused-translation-key": "warning" },
@@ -48,7 +48,7 @@ describe("core result helpers", () => {
     expect(createResult([warning, error], 1, 1).status).toBe("FAIL");
   });
 
-  it("identifies non-disableable configuration diagnostics", () => {
+  it("identifies non-disableable configuration diagnostics", async () => {
     const diagnostic = createConfigurationDiagnostic({
       code: "catalog-target-not-found",
       message: "No catalog targets were configured.",
@@ -61,7 +61,7 @@ describe("core result helpers", () => {
     expect(createResult([diagnostic], 0, 0).status).toBe("FAIL");
   });
 
-  it("merges rule levels and drops diagnostics for disabled rules", () => {
+  it("merges rule levels and drops diagnostics for disabled rules", async () => {
     expect(RULE_DEFINITIONS["unused-translation-key"].defaultLevel).toBe("error");
     expect(RULE_DEFINITIONS["raw-ui-text"].defaultLevel).toBe("off");
     expect(getRuleLevel("raw-ui-text", { "raw-ui-text": "warning" })).toBe("warning");
@@ -77,7 +77,7 @@ describe("core result helpers", () => {
     ).toBeNull();
   });
 
-  it("converts character indexes to one-based source locations", () => {
+  it("converts character indexes to one-based source locations", async () => {
     expect(locationFromIndex("first\nsecond", 7)).toEqual({
       index: 7,
       line: 2,
@@ -85,7 +85,7 @@ describe("core result helpers", () => {
     });
   });
 
-  it("represents resolved and unresolved source usages", () => {
+  it("represents resolved and unresolved source usages", async () => {
     const usages: SourceUsage[] = [
       {
         kind: "resolved",
@@ -108,7 +108,7 @@ describe("core result helpers", () => {
     expect(usages[1]?.kind).toBe("unresolved");
   });
 
-  it("converts source parse errors into diagnostics", () => {
+  it("converts source parse errors into diagnostics", async () => {
     const result = parseSource("src/App.tsx", "export const = ;");
 
     expect(result.program).toBeNull();
@@ -121,7 +121,7 @@ describe("core result helpers", () => {
     ]);
   });
 
-  it("walks AST nodes and exposes shared node helpers", () => {
+  it("walks AST nodes and exposes shared node helpers", async () => {
     const parsed = parseSource("src/app.ts", "const title = 'Title';");
     const names: string[] = [];
 
@@ -139,7 +139,7 @@ describe("core result helpers", () => {
     expect(arrayOf<unknown>(undefined)).toEqual([]);
   });
 
-  it("distinguishes shadowed bindings and detects mutations with Oxc ASTs", () => {
+  it("distinguishes shadowed bindings and detects mutations with Oxc ASTs", async () => {
     const parsed = parseSource(
       "src/app.tsx",
       `
@@ -179,7 +179,7 @@ describe("core result helpers", () => {
     expect(scope.isStable(mutableDeclaration)).toBe(false);
   });
 
-  it("detects direct, conditional, destructuring, compound, and update writes", () => {
+  it("detects direct, conditional, destructuring, compound, and update writes", async () => {
     const parsed = parseSource(
       "src/writes.ts",
       `
@@ -230,7 +230,7 @@ describe("core result helpers", () => {
     }
   });
 
-  it("tracks closure writes without poisoning a shadowed outer binding", () => {
+  it("tracks closure writes without poisoning a shadowed outer binding", async () => {
     const parsed = parseSource(
       "src/closure-writes.ts",
       `
@@ -268,7 +268,7 @@ describe("core result helpers", () => {
     );
   });
 
-  it("resolves only immutable const bindings and restores static values across scopes", () => {
+  it("resolves only immutable const bindings and restores static values across scopes", async () => {
     const parsed = parseSource(
       "src/static-scopes.ts",
       `
@@ -308,7 +308,7 @@ describe("core result helpers", () => {
     expect(resolveStaticStrings(mutableKey, context)).toBeUndefined();
   });
 
-  it("resolves static string literals, arrays, constants, templates, ternaries, and enums", () => {
+  it("resolves static string literals, arrays, constants, templates, ternaries, and enums", async () => {
     const source = `
       enum MessageId { Title = "title" }
       const state = Math.random() > 0.5 ? "ready" : "pending";
@@ -379,26 +379,26 @@ describe("core result helpers", () => {
     return dir;
   }
 
-  it("discovers source files from a directory or a single source file", () => {
+  it("discovers source files from a directory or a single source file", async () => {
     const dir = sourceDiscoveryFixture();
 
-    expect(discoverSourceFiles(path.join(dir, "src"))).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src"))).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "generated", "messages.ts"),
       path.join(dir, "src", "nested", "helper.ts"),
       path.join(dir, "src", "nested", "view.tsx")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src", "app.tsx"))).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src", "app.tsx"))).toEqual([
       path.join(dir, "src", "app.tsx")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src", "readme.md"))).toEqual([]);
+    expect(await discoverSourceFiles(path.join(dir, "src", "readme.md"))).toEqual([]);
   });
 
-  it("discovers source files from target arrays and removes duplicates", () => {
+  it("discovers source files from target arrays and removes duplicates", async () => {
     const dir = sourceDiscoveryFixture();
 
     expect(
-      discoverSourceFiles([
+      await discoverSourceFiles([
         path.join(dir, "src", "app.tsx"),
         path.join(dir, "src", "nested"),
         path.join(dir, "src", "nested", "helper.ts")
@@ -410,20 +410,20 @@ describe("core result helpers", () => {
     ]);
   });
 
-  it("discovers source files from target glob patterns", () => {
+  it("discovers source files from target glob patterns", async () => {
     const dir = sourceDiscoveryFixture();
 
-    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.tsx"))).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src", "**", "*.tsx"))).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "nested", "view.tsx")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.vue"))).toEqual([]);
+    expect(await discoverSourceFiles(path.join(dir, "src", "**", "*.vue"))).toEqual([]);
   });
 
-  it("filters Markdown and images from broad glob targets", () => {
+  it("filters Markdown and images from broad glob targets", async () => {
     const dir = sourceDiscoveryFixture();
 
-    expect(discoverSourceFiles(path.join(dir, "src", "**", "*"))).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src", "**", "*"))).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "generated", "messages.ts"),
       path.join(dir, "src", "nested", "helper.ts"),
@@ -431,12 +431,12 @@ describe("core result helpers", () => {
     ]);
   });
 
-  it("discovers .mts and .cts files from directory targets", () => {
+  it("discovers .mts and .cts files from directory targets", async () => {
     const dir = sourceDiscoveryFixture();
     writeFileSync(path.join(dir, "src", "module.mts"), "export const module = 1;");
     writeFileSync(path.join(dir, "src", "legacy.cts"), "export const legacy = 1;");
 
-    expect(discoverSourceFiles(path.join(dir, "src"))).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src"))).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "generated", "messages.ts"),
       path.join(dir, "src", "legacy.cts"),
@@ -446,33 +446,35 @@ describe("core result helpers", () => {
     ]);
   });
 
-  it("treats an existing path containing glob metacharacters as a literal directory", () => {
+  it("treats an existing path containing glob metacharacters as a literal directory", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-literal-magic-"));
     const sourceDir = path.join(dir, "src[legacy]");
     mkdirSync(sourceDir);
     writeFileSync(path.join(sourceDir, "app.ts"), "export const app = 1;");
 
-    expect(sourceTargetExists(sourceDir)).toBe(true);
-    expect(discoverSourceFiles(sourceDir)).toEqual([path.join(sourceDir, "app.ts")]);
+    expect(await sourceTargetExists(sourceDir)).toBe(true);
+    expect(await discoverSourceFiles(sourceDir)).toEqual([path.join(sourceDir, "app.ts")]);
   });
 
-  it("applies ignorePaths globs to directory, file, and glob targets", () => {
+  it("applies ignorePaths globs to directory, file, and glob targets", async () => {
     const dir = sourceDiscoveryFixture();
 
-    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), ["generated/**"])).toEqual([
+    expect(
+      await discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), ["generated/**"])
+    ).toEqual([
       path.join(dir, "src", "coverage", "report.ts"),
       path.join(dir, "src", "dist", "bundle.ts"),
       path.join(dir, "src", "nested", "helper.ts"),
       path.join(dir, "src", "node_modules", "pkg", "index.ts")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src"), ["nested/**"])).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src"), ["nested/**"])).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "coverage", "report.ts"),
       path.join(dir, "src", "dist", "bundle.ts"),
       path.join(dir, "src", "generated", "messages.ts"),
       path.join(dir, "src", "node_modules", "pkg", "index.ts")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src"), ["generated"])).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src"), ["generated"])).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "coverage", "report.ts"),
       path.join(dir, "src", "dist", "bundle.ts"),
@@ -480,7 +482,7 @@ describe("core result helpers", () => {
       path.join(dir, "src", "nested", "view.tsx"),
       path.join(dir, "src", "node_modules", "pkg", "index.ts")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src"), ["generated/**"])).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src"), ["generated/**"])).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "coverage", "report.ts"),
       path.join(dir, "src", "dist", "bundle.ts"),
@@ -488,7 +490,7 @@ describe("core result helpers", () => {
       path.join(dir, "src", "nested", "view.tsx"),
       path.join(dir, "src", "node_modules", "pkg", "index.ts")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src"), ["**/messages.ts"])).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src"), ["**/messages.ts"])).toEqual([
       path.join(dir, "src", "app.tsx"),
       path.join(dir, "src", "coverage", "report.ts"),
       path.join(dir, "src", "dist", "bundle.ts"),
@@ -497,10 +499,10 @@ describe("core result helpers", () => {
       path.join(dir, "src", "node_modules", "pkg", "index.ts")
     ]);
     expect(
-      discoverSourceFiles(path.join(dir, "src", "generated", "messages.ts"), ["messages.ts"])
+      await discoverSourceFiles(path.join(dir, "src", "generated", "messages.ts"), ["messages.ts"])
     ).toEqual([]);
     expect(
-      discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), [
+      await discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), [
         path.join(dir, "src", "nested", "helper.ts")
       ])
     ).toEqual([
@@ -511,14 +513,14 @@ describe("core result helpers", () => {
     ]);
   });
 
-  it("uses default ignore paths only when ignorePaths is omitted", () => {
+  it("uses default ignore paths only when ignorePaths is omitted", async () => {
     const dir = sourceDiscoveryFixture();
 
-    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.ts"))).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src", "**", "*.ts"))).toEqual([
       path.join(dir, "src", "generated", "messages.ts"),
       path.join(dir, "src", "nested", "helper.ts")
     ]);
-    expect(discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), [])).toEqual([
+    expect(await discoverSourceFiles(path.join(dir, "src", "**", "*.ts"), [])).toEqual([
       path.join(dir, "src", "coverage", "report.ts"),
       path.join(dir, "src", "dist", "bundle.ts"),
       path.join(dir, "src", "generated", "messages.ts"),
@@ -527,20 +529,23 @@ describe("core result helpers", () => {
     ]);
   });
 
-  it("reports source target existence for literals, globs, and arrays", () => {
+  it("reports source target existence for literals, globs, and arrays", async () => {
     const dir = sourceDiscoveryFixture();
 
-    expect(sourceTargetExists(path.join(dir, "src"))).toBe(true);
-    expect(sourceTargetExists(path.join(dir, "src", "app.tsx"))).toBe(true);
-    expect(sourceTargetExists(path.join(dir, "missing-src"))).toBe(false);
-    expect(sourceTargetExists(path.join(dir, "src", "**/*.tsx"))).toBe(true);
-    expect(sourceTargetExists(path.join(dir, "src", "**/*.vue"))).toBe(false);
+    expect(await sourceTargetExists(path.join(dir, "src"))).toBe(true);
+    expect(await sourceTargetExists(path.join(dir, "src", "app.tsx"))).toBe(true);
+    expect(await sourceTargetExists(path.join(dir, "missing-src"))).toBe(false);
+    expect(await sourceTargetExists(path.join(dir, "src", "**/*.tsx"))).toBe(true);
+    expect(await sourceTargetExists(path.join(dir, "src", "**/*.vue"))).toBe(false);
     expect(
-      sourceTargetExists([path.join(dir, "src", "missing"), path.join(dir, "src", "**/*.tsx")])
+      await sourceTargetExists([
+        path.join(dir, "src", "missing"),
+        path.join(dir, "src", "**/*.tsx")
+      ])
     ).toBe(true);
   });
 
-  it("formats single and multiple source targets for diagnostics", () => {
+  it("formats single and multiple source targets for diagnostics", async () => {
     const dir = sourceDiscoveryFixture();
 
     expect(formatSourceTarget(path.join(dir, "src"))).toBe(path.join(dir, "src"));
@@ -549,7 +554,7 @@ describe("core result helpers", () => {
     );
   });
 
-  it("expands catalog patterns and captures locale and namespace metadata", () => {
+  it("expands catalog patterns and captures locale and namespace metadata", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-catalog-pattern-"));
     const validFile = path.join(dir, "catalogs[legacy]", "checkout", "es-ES", "messages.json");
     const repeatedFile = path.join(dir, "repeated", "en", "messages.en.json");
@@ -562,24 +567,24 @@ describe("core result helpers", () => {
     writeFileSync(mismatchFile, "{}");
 
     expect(
-      expandCatalogPattern(
+      await expandCatalogPattern(
         path.join(dir, "catalogs[legacy]", "{namespace}", "{locale}", "messages.json")
       )
     ).toEqual([{ filePath: validFile, namespace: "checkout", locale: "es-ES" }]);
     expect(
-      expandCatalogPattern(path.join(dir, "repeated", "{locale}", "messages.{locale}.json"))
+      await expandCatalogPattern(path.join(dir, "repeated", "{locale}", "messages.{locale}.json"))
     ).toEqual([{ filePath: repeatedFile, locale: "en" }]);
   });
 
-  it("returns no catalog paths when a placeholder root does not exist", () => {
+  it("returns no catalog paths when a placeholder root does not exist", async () => {
     const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-missing-catalog-root-"));
 
-    expect(expandCatalogPattern(path.join(dir, "missing", "{locale}.json"))).toEqual([]);
+    expect(await expandCatalogPattern(path.join(dir, "missing", "{locale}.json"))).toEqual([]);
   });
 
-  it("returns no source files for missing literal targets", () => {
+  it("returns no source files for missing literal targets", async () => {
     const dir = sourceDiscoveryFixture();
 
-    expect(discoverSourceFiles(path.join(dir, "missing-src"))).toEqual([]);
+    expect(await discoverSourceFiles(path.join(dir, "missing-src"))).toEqual([]);
   });
 });

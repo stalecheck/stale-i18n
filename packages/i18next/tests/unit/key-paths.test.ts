@@ -22,12 +22,12 @@ function check(
       data: catalog
     },
     ...options
-  }).checkSync();
+  }).check();
 }
 
 describe("i18next key paths", () => {
-  it("matches nested catalog paths using a custom separator", () => {
-    const result = check(
+  it("matches nested catalog paths using a custom separator", async () => {
+    const result = await check(
       `
 import { useTranslation } from "react-i18next";
 const { t } = useTranslation();
@@ -45,8 +45,8 @@ t("section/title");
     });
   });
 
-  it("does not treat the default separator as a path separator when a custom one is configured", () => {
-    const result = check(
+  it("does not treat the default separator as a path separator when a custom one is configured", async () => {
+    const result = await check(
       `
 import { useTranslation } from "react-i18next";
 const { t } = useTranslation();
@@ -62,8 +62,8 @@ t("section.title");
     ]);
   });
 
-  it("combines keyPrefix with the configured separator", () => {
-    const result = check(
+  it("combines keyPrefix with the configured separator", async () => {
+    const result = await check(
       `
 import { useTranslation } from "react-i18next";
 const { t } = useTranslation("translation", { keyPrefix: "section" });
@@ -79,8 +79,8 @@ t("missing");
     ]);
   });
 
-  it("keeps flat catalog keys literal when keySeparator is false", () => {
-    const result = check(
+  it("keeps flat catalog keys literal when keySeparator is false", async () => {
+    const result = await check(
       `
 import { useTranslation } from "react-i18next";
 const { t } = useTranslation("translation", { keyPrefix: "section" });
@@ -98,8 +98,8 @@ t("title");
     });
   });
 
-  it("applies plural suffixes to the final segment of a custom path", () => {
-    const result = check(
+  it("applies plural suffixes to the final segment of a custom path", async () => {
+    const result = await check(
       `
 import { useTranslation } from "react-i18next";
 const { t } = useTranslation();
@@ -117,8 +117,8 @@ t("cart/items", { count: 2 });
     });
   });
 
-  it("resolves nested translation references with a custom separator", () => {
-    const result = check(
+  it("resolves nested translation references with a custom separator", async () => {
+    const result = await check(
       `
 import { useTranslation } from "react-i18next";
 const { t } = useTranslation();

@@ -35,15 +35,6 @@ const result = await new I18nextChecker({
 }).check();
 ```
 
-Use `checkSync()` for synchronous integrations:
-
-```ts
-const result = new I18nextChecker({
-  target: "src",
-  catalogs: "locales/{locale}/{namespace}.json"
-}).checkSync();
-```
-
 ## Options
 
 ```ts

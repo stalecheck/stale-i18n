@@ -8,11 +8,11 @@ import {
   parseSource,
   stringLiteral
 } from "@stale-i18n/core";
-import { existsSync, readFileSync } from "node:fs";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import type { AnyNode, CatalogEntry, CatalogReadResult, FormatjsCheckOptions } from "./types.js";
 
-export function readCatalogs(options: FormatjsCheckOptions): CatalogReadResult {
+export async function readCatalogs(options: FormatjsCheckOptions): Promise<CatalogReadResult> {
   const patterns = Array.isArray(options.catalogs) ? options.catalogs : [options.catalogs];
   const entries: CatalogEntry[] = [];
   const diagnostics = [];
@@ -28,26 +28,30 @@ export function readCatalogs(options: FormatjsCheckOptions): CatalogReadResult {
       })
     );
   }
-  const catalogPaths = patterns.flatMap((pattern) => {
-    const matches = expandCatalogPattern(pattern);
-    if (matches.length === 0) {
-      diagnostics.push(
-        createConfigurationDiagnostic({
-          code: "catalog-target-not-found",
-          message: `Catalog target was not found: ${pattern}`,
-          filePath: path.resolve(pattern),
-          line: 1,
-          column: 1
-        })
-      );
+  const catalogPaths = (await Promise.all(patterns.map(expandCatalogPattern))).flatMap(
+    (matches, index) => {
+      const pattern = patterns[index]!;
+      if (matches.length === 0) {
+        diagnostics.push(
+          createConfigurationDiagnostic({
+            code: "catalog-target-not-found",
+            message: `Catalog target was not found: ${pattern}`,
+            filePath: path.resolve(pattern),
+            line: 1,
+            column: 1
+          })
+        );
+      }
+      return matches;
     }
-    return matches;
-  });
+  );
 
   for (const catalog of catalogPaths) {
     const catalogPath = catalog.filePath;
     const locale = catalog.locale ?? path.parse(catalogPath).name;
-    if (!existsSync(catalogPath)) {
+    try {
+      if (!(await stat(catalogPath)).isFile()) throw new Error("Catalog file not found");
+    } catch {
       const diagnostic = createDiagnostic({
         code: "catalog-file-not-found",
         rules: options.rules,
@@ -62,7 +66,7 @@ export function readCatalogs(options: FormatjsCheckOptions): CatalogReadResult {
     }
 
     try {
-      const parsed = readCatalogFile(catalogPath);
+      const parsed = await readCatalogFile(catalogPath);
       locales.add(locale);
       entries.push(...flattenCatalog(parsed, catalogPath, locale));
     } catch (error) {
@@ -82,8 +86,8 @@ export function readCatalogs(options: FormatjsCheckOptions): CatalogReadResult {
   return { entries, diagnostics, catalogsChecked: catalogPaths.length, locales };
 }
 
-function readCatalogFile(filePath: string): unknown {
-  const source = readFileSync(filePath, "utf8");
+async function readCatalogFile(filePath: string): Promise<unknown> {
+  const source = await readFile(filePath, "utf8");
   if (/\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(filePath)) {
     return readStaticModuleCatalog(filePath, source);
   }
