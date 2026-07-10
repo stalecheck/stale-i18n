@@ -26,7 +26,7 @@ pnpm add -D @stale-i18n/i18next
 pnpm add -D @stale-i18n/formatjs
 ```
 
-Packages are ESM-only and require Node.js 22.12 or newer.
+Packages are ESM-only and require Node.js 22.18.0 or newer.
 
 Package documentation:
 

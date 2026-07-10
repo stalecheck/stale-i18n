@@ -2,9 +2,8 @@
 
 WIP Paraglide integration for `stale-i18n`.
 
-This package is experimental and intentionally not documented in the main project
-README yet. Its API and supported patterns may change while the checker is being
-validated.
+This package is experimental. Its API and supported patterns may change while the
+checker is being validated.
 
 ## Goal
 

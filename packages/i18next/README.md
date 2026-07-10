@@ -21,7 +21,7 @@ locale catalogs.
 pnpm add -D @stale-i18n/i18next
 ```
 
-The package is ESM-only and requires Node.js 22.12 or newer.
+The package is ESM-only and requires Node.js 22.18.0 or newer.
 
 ## Basic Usage
 

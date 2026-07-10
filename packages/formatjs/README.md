@@ -2,8 +2,8 @@
 
 FormatJS and React Intl checks for `stale-i18n`.
 
-This package scans source files for explicit message ids, compares them with flat
-locale catalogs, and reports stale or missing translations.
+This package scans source files for explicit message ids, compares them with locale
+catalogs, and reports stale or missing translations.
 
 ## What It Catches
 
@@ -19,7 +19,7 @@ locale catalogs, and reports stale or missing translations.
 pnpm add -D @stale-i18n/formatjs
 ```
 
-The package is ESM-only and requires Node.js 22.12 or newer.
+The package is ESM-only and requires Node.js 22.18.0 or newer.
 
 ## Basic Usage
 
@@ -44,7 +44,8 @@ type FormatjsCheckOptions = {
 ```
 
 - `target`: source file, directory, Node.js glob, or array mixing them.
-- `catalogs`: one or more flat JSON catalog patterns.
+- `catalogs`: one or more catalog patterns. JSON catalogs and static ESM modules
+  (`.js`, `.jsx`, `.mjs`, `.ts`, `.tsx`, `.mts`, and `.cts`) are supported.
 - `ignorePaths`: Node.js glob patterns for source paths to skip. When omitted,
   `node_modules`, `dist`, and `coverage` are ignored by default. When provided,
   this list replaces those defaults.
@@ -61,7 +62,7 @@ const result = await new FormatjsChecker({
 }).check();
 ```
 
-Catalogs are expected to be flat JSON objects:
+Catalogs must resolve to flat objects. They can be JSON files:
 
 ```json
 {
@@ -69,6 +70,18 @@ Catalogs are expected to be flat JSON objects:
   "checkout.submit": "Pay now"
 }
 ```
+
+or static ESM modules exporting one object:
+
+```ts
+export default {
+  "checkout.title": "Checkout",
+  "checkout.submit": "Pay now"
+};
+```
+
+The module object must be statically resolvable; CommonJS catalogs and runtime
+computed values are not supported.
 
 ## Source Patterns
 
@@ -92,7 +105,7 @@ Dynamic ids that cannot be enumerated safely are reported as
 
 ## Limits
 
-- Catalogs must be flat JSON today.
+- Catalogs must be flat objects; nested messages are not supported.
 - Generated message ids are not inferred.
 - ICU syntax and placeholder consistency are not validated yet.
 - `defaultMessage` extraction is out of scope for this package.

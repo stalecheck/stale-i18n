@@ -11,7 +11,7 @@ writing Node.js integration code.
 pnpm add -D @stale-i18n/cli
 ```
 
-The package provides the `stale-i18n` executable and requires Node.js 22.12 or newer.
+The package provides the `stale-i18n` executable and requires Node.js 22.18.0 or newer.
 
 ## Supported Commands
 
