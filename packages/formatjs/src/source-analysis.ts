@@ -101,6 +101,21 @@ export function analyzeProgram(program: AnyNode, source: string, filePath: strin
             )
           );
         }
+        const directIntlCall = directUseIntlCall(node.callee as AnyNode | undefined);
+        const directIntlBinding = scope.bindingId(directIntlCall?.callee);
+        if (directIntlBinding !== undefined && useIntlBindings.has(directIntlBinding)) {
+          usages.push(
+            ...usagesFromFormatMessage(
+              node,
+              source,
+              filePath,
+              staticStrings,
+              descriptorValues,
+              descriptorMemberValues,
+              scope
+            )
+          );
+        }
       }
 
       if (node.type === "JSXElement") {
@@ -341,6 +356,15 @@ function memberExpressionName(
   const object = scope.bindingId(node.object);
   const property = identifierName(node.property) ?? stringLiteral(node.property);
   return object !== undefined && property ? { object, property } : null;
+}
+
+function directUseIntlCall(node: AnyNode | undefined): AnyNode | undefined {
+  if (node?.type !== "MemberExpression" || identifierName(node.property) !== "formatMessage") {
+    return undefined;
+  }
+
+  const object = node.object as AnyNode | undefined;
+  return object?.type === "CallExpression" ? object : undefined;
 }
 
 function resolvedUsage(

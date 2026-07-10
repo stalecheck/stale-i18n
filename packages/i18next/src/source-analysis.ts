@@ -118,6 +118,24 @@ export function analyzeProgram(
             )
           );
         }
+        const directHookCall = directUseTranslationCall(node.callee as AnyNode | undefined);
+        const directHookBinding = scope.bindingId(directHookCall?.callee);
+        if (
+          directHookCall &&
+          directHookBinding !== undefined &&
+          useTranslationBindings.has(directHookBinding)
+        ) {
+          usages.push(
+            ...usageFromTCall(
+              node,
+              bindingFromUseTranslation(directHookCall, options, staticStrings),
+              source,
+              filePath,
+              options,
+              staticStrings
+            )
+          );
+        }
       }
 
       if (isJsxMode(options) && node.type === "JSXElement") {
@@ -559,6 +577,15 @@ function memberExpressionName(
   const object = scope.bindingId(node.object);
   const property = identifierName(node.property);
   return object !== undefined && property ? { object, property } : null;
+}
+
+function directUseTranslationCall(node: AnyNode | undefined): AnyNode | undefined {
+  if (node?.type !== "MemberExpression" || identifierName(node.property) !== "t") {
+    return undefined;
+  }
+
+  const object = node.object as AnyNode | undefined;
+  return object?.type === "CallExpression" ? object : undefined;
 }
 
 function nodeLocation(node: AnyNode, source: string): SourceLocation {
