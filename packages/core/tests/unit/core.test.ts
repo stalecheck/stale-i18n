@@ -375,6 +375,7 @@ describe("core result helpers", () => {
       "export const pkg = 1;"
     );
     writeFileSync(path.join(dir, "src", "readme.md"), "# docs");
+    writeFileSync(path.join(dir, "src", "logo.png"), "not an image that needs parsing");
     return dir;
   }
 
@@ -417,6 +418,32 @@ describe("core result helpers", () => {
       path.join(dir, "src", "nested", "view.tsx")
     ]);
     expect(discoverSourceFiles(path.join(dir, "src", "**", "*.vue"))).toEqual([]);
+  });
+
+  it("filters Markdown and images from broad glob targets", () => {
+    const dir = sourceDiscoveryFixture();
+
+    expect(discoverSourceFiles(path.join(dir, "src", "**", "*"))).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "generated", "messages.ts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "nested", "view.tsx")
+    ]);
+  });
+
+  it("discovers .mts and .cts files from directory targets", () => {
+    const dir = sourceDiscoveryFixture();
+    writeFileSync(path.join(dir, "src", "module.mts"), "export const module = 1;");
+    writeFileSync(path.join(dir, "src", "legacy.cts"), "export const legacy = 1;");
+
+    expect(discoverSourceFiles(path.join(dir, "src"))).toEqual([
+      path.join(dir, "src", "app.tsx"),
+      path.join(dir, "src", "generated", "messages.ts"),
+      path.join(dir, "src", "legacy.cts"),
+      path.join(dir, "src", "module.mts"),
+      path.join(dir, "src", "nested", "helper.ts"),
+      path.join(dir, "src", "nested", "view.tsx")
+    ]);
   });
 
   it("treats an existing path containing glob metacharacters as a literal directory", () => {

@@ -56,7 +56,7 @@ function discoverLiteralSourceTargetFiles(absoluteTarget: string, ignorePaths: s
   const cwd = targetStat.isFile() ? path.dirname(absoluteTarget) : absoluteTarget;
   const pattern = targetStat.isFile()
     ? path.basename(absoluteTarget)
-    : "**/*.{js,jsx,ts,tsx,mjs,cjs}";
+    : "**/*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}";
 
   if (targetStat.isFile()) {
     if (!isSourceFile(absoluteTarget)) {
@@ -69,7 +69,7 @@ function discoverLiteralSourceTargetFiles(absoluteTarget: string, ignorePaths: s
 }
 
 function isSourceFile(filePath: string): boolean {
-  return /\.(?:js|jsx|ts|tsx|mjs|cjs)$/.test(filePath);
+  return /\.(?:js|jsx|ts|tsx|mjs|cjs|mts|cts)$/.test(filePath);
 }
 
 function sourceFileGlob(
@@ -81,6 +81,7 @@ function sourceFileGlob(
   return globSync(pattern, cwd === undefined ? {} : { cwd })
     .map((filePath) => path.resolve(cwd ?? process.cwd(), filePath))
     .filter((filePath) => statSync(filePath).isFile())
+    .filter(isSourceFile)
     .filter((filePath) => !isIgnoredPath(filePath, ignoreRoot, ignorePaths))
     .sort();
 }
