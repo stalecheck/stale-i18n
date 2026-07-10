@@ -12,6 +12,8 @@ import {
   expandCatalogPattern,
   formatSourceTarget,
   sourceTargetExists,
+  sourceTargetMissing,
+  validateBaseCheckOptions,
   getRuleLevel,
   identifierName,
   isConfigurationDiagnostic,
@@ -27,6 +29,21 @@ import path from "node:path";
 import type { AnyNode, SourceUsage } from "@stale-i18n/core";
 
 describe("core result helpers", () => {
+  it("validates runtime base options before source discovery", () => {
+    expect(
+      validateBaseCheckOptions({
+        target: ["src", ""],
+        ignorePaths: ["generated", 1],
+        rules: { "unknown-rule": "error", "raw-ui-text": "invalid" }
+      })
+    ).toEqual([
+      "target must be a string or a non-empty array of strings.",
+      "ignorePaths must be an array of strings.",
+      "rules contains an unknown rule: unknown-rule.",
+      'rules.raw-ui-text must be "off", "warning", or "error".'
+    ]);
+  });
+
   it("marks results with errors as FAIL and warning-only results as SUCCESS", async () => {
     const warning = createDiagnostic({
       code: "unused-translation-key",
@@ -537,12 +554,9 @@ describe("core result helpers", () => {
     expect(await sourceTargetExists(path.join(dir, "missing-src"))).toBe(false);
     expect(await sourceTargetExists(path.join(dir, "src", "**/*.tsx"))).toBe(true);
     expect(await sourceTargetExists(path.join(dir, "src", "**/*.vue"))).toBe(false);
-    expect(
-      await sourceTargetExists([
-        path.join(dir, "src", "missing"),
-        path.join(dir, "src", "**/*.tsx")
-      ])
-    ).toBe(true);
+    const targets = [path.join(dir, "src", "missing"), path.join(dir, "src", "**/*.tsx")];
+    expect(await sourceTargetExists(targets)).toBe(false);
+    expect(await sourceTargetMissing(targets)).toEqual([path.join(dir, "src", "missing")]);
   });
 
   it("formats single and multiple source targets for diagnostics", async () => {

@@ -15,7 +15,13 @@ export async function discoverSourceFiles(
 }
 
 export async function sourceTargetExists(target: SourceTarget): Promise<boolean> {
-  return (await Promise.all(sourceTargets(target).map(sourceTargetPathExists))).some(Boolean);
+  return (await sourceTargetMissing(target)).length === 0;
+}
+
+export async function sourceTargetMissing(target: SourceTarget): Promise<string[]> {
+  const targets = sourceTargets(target);
+  const exists = await Promise.all(targets.map(sourceTargetPathExists));
+  return targets.filter((_, index) => !exists[index]);
 }
 
 export function formatSourceTarget(target: SourceTarget): string {

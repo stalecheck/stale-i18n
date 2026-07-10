@@ -63,7 +63,9 @@ export function isConfigurationDiagnostic(
   diagnostic: Diagnostic
 ): diagnostic is Diagnostic & { code: ConfigurationDiagnosticCode } {
   return (
-    diagnostic.code === "source-target-not-found" || diagnostic.code === "catalog-target-not-found"
+    diagnostic.code === "invalid-configuration" ||
+    diagnostic.code === "source-target-not-found" ||
+    diagnostic.code === "catalog-target-not-found"
   );
 }
 

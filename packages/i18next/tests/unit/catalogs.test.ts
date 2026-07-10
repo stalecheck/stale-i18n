@@ -328,6 +328,52 @@ describe("i18next catalog path metadata", () => {
       })
     );
   });
+
+  it("rejects invalid runtime options before attempting analysis", async () => {
+    const result = await new I18nextChecker({
+      target: "src",
+      catalogs: "locales/en.json"
+    }).check({ keySeparator: "" });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: "FAIL",
+        filesChecked: 0,
+        catalogsChecked: 0,
+        diagnostics: [expect.objectContaining({ code: "invalid-configuration", severity: "error" })]
+      })
+    );
+  });
+
+  it("rejects resource catalogs that are not non-empty plain objects", async () => {
+    const result = await new I18nextChecker({
+      target: "src",
+      catalogs: { type: "resource", data: null }
+    } as never).check();
+
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({ code: "invalid-configuration", severity: "error" })
+    ]);
+  });
+
+  it("reports every missing source target separately", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "i18next-multiple-targets-"));
+    const source = path.join(root, "app.ts");
+    const missing = path.join(root, "missing.ts");
+    writeFileSync(source, "export const value = 1;");
+    writeCatalog(root, "en.json");
+
+    const result = await new I18nextChecker({
+      target: [source, missing],
+      catalogs: path.join(root, "en.json")
+    }).check();
+
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "source-target-not-found", filePath: missing })
+      ])
+    );
+  });
 });
 
 describe("i18next source analysis phases", () => {

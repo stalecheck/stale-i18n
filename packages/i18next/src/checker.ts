@@ -6,7 +6,8 @@ import {
   discoverSourceFiles,
   formatSourceTarget,
   isConfigurationDiagnostic,
-  sourceTargetExists,
+  sourceTargetMissing,
+  validateBaseCheckOptions,
   type CheckResult,
   type Diagnostic,
   type RuleCode,
@@ -28,22 +29,38 @@ export class I18nextChecker implements TranslationChecker<I18nextCheckOptions> {
 
   async check(options?: Partial<I18nextCheckOptions>): Promise<CheckResult> {
     const merged = { ...this.options, ...options };
+    const validationIssues = validateI18nextOptions(merged);
+    if (validationIssues.length > 0) {
+      return createResult(
+        validationIssues.map((message) =>
+          createConfigurationDiagnostic({
+            code: "invalid-configuration",
+            message,
+            filePath: process.cwd(),
+            line: 1,
+            column: 1
+          })
+        ),
+        0,
+        0
+      );
+    }
     const target = merged.target ?? process.cwd();
-    const [targetExists, sourceFiles, catalogResult] = await Promise.all([
-      sourceTargetExists(target),
+    const [missingTargets, sourceFiles, catalogResult] = await Promise.all([
+      sourceTargetMissing(target),
       discoverSourceFiles(target, merged.ignorePaths),
       readCatalogs(merged)
     ]);
     const diagnostics: Array<Diagnostic | null> = [
-      targetExists
-        ? null
-        : createConfigurationDiagnostic({
-            code: "source-target-not-found",
-            message: `Source target was not found: ${formatSourceTarget(target)}`,
-            filePath: formatSourceTarget(target),
-            line: 1,
-            column: 1
-          }),
+      ...missingTargets.map((missingTarget) =>
+        createConfigurationDiagnostic({
+          code: "source-target-not-found",
+          message: `Source target was not found: ${formatSourceTarget(missingTarget)}`,
+          filePath: formatSourceTarget(missingTarget),
+          line: 1,
+          column: 1
+        })
+      ),
       ...catalogResult.diagnostics
     ];
     const usages: I18nextSourceUsage[] = [];
@@ -74,9 +91,64 @@ export class I18nextChecker implements TranslationChecker<I18nextCheckOptions> {
       diagnostics.push(...analyzed.diagnostics);
     }
 
-    if (targetExists && !catalogResult.diagnostics.some(isConfigurationDiagnostic)) {
+    if (missingTargets.length === 0 && !catalogResult.diagnostics.some(isConfigurationDiagnostic)) {
       diagnostics.push(...compareUsages(usages, catalogResult, merged));
     }
     return createResult(diagnostics, sourceFiles.length, catalogResult.catalogsChecked);
   }
+}
+
+function validateI18nextOptions(options: unknown): string[] {
+  const issues = validateBaseCheckOptions(options);
+  if (options === null || typeof options !== "object" || Array.isArray(options)) return issues;
+  const value = options as Record<string, unknown>;
+  const catalogs = Array.isArray(value.catalogs) ? value.catalogs : [value.catalogs];
+  if (catalogs.length > 0 && catalogs.some((catalog) => !isCatalogInput(catalog))) {
+    issues.push("catalogs must be a catalog path or an array of valid path/resource configs.");
+  }
+  for (const field of ["defaultNamespace", "keySeparator", "namespaceSeparator"] as const) {
+    const fieldValue = value[field];
+    const valid =
+      fieldValue === undefined ||
+      typeof fieldValue === "string" ||
+      ((field === "keySeparator" || field === "namespaceSeparator") && fieldValue === false);
+    if (!valid || (typeof fieldValue === "string" && fieldValue.length === 0)) {
+      issues.push(
+        `${field} must be a non-empty string${field === "defaultNamespace" ? "" : " or false"}.`
+      );
+    }
+  }
+  if (value.mode !== undefined && value.mode !== "jsx") issues.push('mode must be "jsx".');
+  return issues;
+}
+
+function isCatalogInput(value: unknown): boolean {
+  if (typeof value === "string") return value.length > 0;
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const catalog = value as Record<string, unknown>;
+  if (catalog.type === "path") {
+    return (
+      typeof catalog.data === "string" &&
+      catalog.data.length > 0 &&
+      optionalMetadataIsValid(catalog)
+    );
+  }
+  return (
+    catalog.type === "resource" && isPlainCatalog(catalog.data) && optionalMetadataIsValid(catalog)
+  );
+}
+
+function optionalMetadataIsValid(catalog: Record<string, unknown>): boolean {
+  return ["namespace", "locale", "filePath"].every(
+    (field) => catalog[field] === undefined || typeof catalog[field] === "string"
+  );
+}
+
+function isPlainCatalog(value: unknown): value is Record<string, unknown> {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.keys(value).length > 0
+  );
 }
