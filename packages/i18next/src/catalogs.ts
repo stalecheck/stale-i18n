@@ -211,7 +211,7 @@ function staticModuleBindings(program: AnyNode): Map<string, AnyNode> {
     if (statement.type !== "VariableDeclaration" || statement.kind !== "const") continue;
     for (const declarator of arrayOf<AnyNode>(statement.declarations)) {
       const name = identifierName(declarator.id);
-      const init = declarator.init;
+      const init = declarator.init as AnyNode | undefined;
       if (name && init) bindings.set(name, init);
     }
   }
