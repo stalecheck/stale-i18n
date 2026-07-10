@@ -8,13 +8,13 @@
     }
   },
   "result": {
-    "status": "SUCCESS",
+    "status": "FAIL",
     "filesChecked": 1,
-    "catalogsChecked": 1,
+    "catalogsChecked": 0,
     "diagnostics": [
       {
-        "code": "catalog-file-not-found",
-        "severity": "warning"
+        "code": "catalog-target-not-found",
+        "severity": "error"
       }
     ]
   }

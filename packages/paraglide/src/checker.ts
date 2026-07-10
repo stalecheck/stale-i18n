@@ -4,6 +4,7 @@ import {
   createResult,
   discoverSourceFiles,
   formatSourceTarget,
+  isConfigurationDiagnostic,
   parseSource,
   sourceTargetExists,
   type CheckResult,
@@ -76,7 +77,7 @@ export class ParaglideChecker implements TranslationChecker<ParaglideCheckOption
       usages.push(...analyzeProgram(parsed.program as AnyNode, source, filePath));
     }
 
-    if (targetExists) {
+    if (targetExists && !catalogResult.diagnostics.some(isConfigurationDiagnostic)) {
       diagnostics.push(...compareUsages(usages, catalogResult, merged));
     }
     return createResult(diagnostics, sourceFiles.length, catalogResult.catalogsChecked);

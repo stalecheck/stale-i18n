@@ -8,7 +8,12 @@ export {
   stringLiteral,
   walk
 } from "./ast.js";
-export { createConfigurationDiagnostic, createDiagnostic, createResult } from "./diagnostics.js";
+export {
+  createConfigurationDiagnostic,
+  createDiagnostic,
+  createResult,
+  isConfigurationDiagnostic
+} from "./diagnostics.js";
 export type { CreateConfigurationDiagnosticInput, CreateDiagnosticInput } from "./diagnostics.js";
 export { expandCatalogPattern } from "./catalog-pattern.js";
 export type { CatalogPathMetadata, ExpandedCatalogPath } from "./catalog-pattern.js";

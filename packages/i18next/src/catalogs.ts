@@ -1,5 +1,6 @@
 import {
   arrayOf,
+  createConfigurationDiagnostic,
   createDiagnostic,
   expandCatalogPattern,
   identifierName,
@@ -8,6 +9,7 @@ import {
   stringLiteral
 } from "@stale-i18n/core";
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { CatalogConfigI18n } from "./catalog-config.js";
 import {
   displayTranslationKey,
@@ -26,17 +28,41 @@ import type {
 
 export function readCatalogs(options: I18nextCheckOptions): CatalogReadResult {
   const catalogs = Array.isArray(options.catalogs) ? options.catalogs : [options.catalogs];
+  const diagnostics = [];
+  if (catalogs.length === 0) {
+    diagnostics.push(
+      createConfigurationDiagnostic({
+        code: "catalog-target-not-found",
+        message: "No catalog targets were configured.",
+        filePath: process.cwd(),
+        line: 1,
+        column: 1
+      })
+    );
+  }
   const pathConfigs = catalogs.filter(isPathCatalog);
   const resourceConfigs = catalogs.filter(isResourceCatalog);
-  const catalogPaths = pathConfigs.flatMap((catalog) =>
-    expandCatalogPattern(pathCatalogData(catalog)).map((expanded) => ({
+  const catalogPaths = pathConfigs.flatMap((catalog) => {
+    const pattern = pathCatalogData(catalog);
+    const matches = expandCatalogPattern(pattern);
+    if (matches.length === 0) {
+      diagnostics.push(
+        createConfigurationDiagnostic({
+          code: "catalog-target-not-found",
+          message: `Catalog target was not found: ${pattern}`,
+          filePath: path.resolve(pattern),
+          line: 1,
+          column: 1
+        })
+      );
+    }
+    return matches.map((expanded) => ({
       ...expanded,
       configuredLocale: typeof catalog === "string" ? undefined : catalog.locale,
       configuredNamespace: typeof catalog === "string" ? undefined : catalog.namespace
-    }))
-  );
+    }));
+  });
   const entries: CatalogEntry[] = [];
-  const diagnostics = [];
   const validNamespaces = new Set<string>();
   const localesByNamespace = new Map<string, Set<string>>();
 

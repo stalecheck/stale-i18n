@@ -1,5 +1,6 @@
 import {
   arrayOf,
+  createConfigurationDiagnostic,
   createDiagnostic,
   expandCatalogPattern,
   identifierName,
@@ -13,10 +14,35 @@ import type { AnyNode, CatalogEntry, CatalogReadResult, FormatjsCheckOptions } f
 
 export function readCatalogs(options: FormatjsCheckOptions): CatalogReadResult {
   const patterns = Array.isArray(options.catalogs) ? options.catalogs : [options.catalogs];
-  const catalogPaths = patterns.flatMap((pattern) => expandCatalogPattern(pattern));
   const entries: CatalogEntry[] = [];
   const diagnostics = [];
   const locales = new Set<string>();
+  if (patterns.length === 0) {
+    diagnostics.push(
+      createConfigurationDiagnostic({
+        code: "catalog-target-not-found",
+        message: "No catalog targets were configured.",
+        filePath: process.cwd(),
+        line: 1,
+        column: 1
+      })
+    );
+  }
+  const catalogPaths = patterns.flatMap((pattern) => {
+    const matches = expandCatalogPattern(pattern);
+    if (matches.length === 0) {
+      diagnostics.push(
+        createConfigurationDiagnostic({
+          code: "catalog-target-not-found",
+          message: `Catalog target was not found: ${pattern}`,
+          filePath: path.resolve(pattern),
+          line: 1,
+          column: 1
+        })
+      );
+    }
+    return matches;
+  });
 
   for (const catalog of catalogPaths) {
     const catalogPath = catalog.filePath;

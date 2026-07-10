@@ -3,6 +3,7 @@ import {
   arrayOf,
   collectStaticStringBinding,
   collectStaticStringEnum,
+  createConfigurationDiagnostic,
   createDiagnostic,
   createResult,
   createSourceScope,
@@ -13,6 +14,7 @@ import {
   sourceTargetExists,
   getRuleLevel,
   identifierName,
+  isConfigurationDiagnostic,
   locationFromIndex,
   parseSource,
   resolveStaticStrings,
@@ -44,6 +46,19 @@ describe("core result helpers", () => {
 
     expect(createResult([warning], 1, 1).status).toBe("SUCCESS");
     expect(createResult([warning, error], 1, 1).status).toBe("FAIL");
+  });
+
+  it("identifies non-disableable configuration diagnostics", () => {
+    const diagnostic = createConfigurationDiagnostic({
+      code: "catalog-target-not-found",
+      message: "No catalog targets were configured.",
+      filePath: process.cwd(),
+      line: 1,
+      column: 1
+    });
+
+    expect(isConfigurationDiagnostic(diagnostic)).toBe(true);
+    expect(createResult([diagnostic], 0, 0).status).toBe("FAIL");
   });
 
   it("merges rule levels and drops diagnostics for disabled rules", () => {
@@ -527,6 +542,12 @@ describe("core result helpers", () => {
     expect(
       expandCatalogPattern(path.join(dir, "repeated", "{locale}", "messages.{locale}.json"))
     ).toEqual([{ filePath: repeatedFile, locale: "en" }]);
+  });
+
+  it("returns no catalog paths when a placeholder root does not exist", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "i18n-core-missing-catalog-root-"));
+
+    expect(expandCatalogPattern(path.join(dir, "missing", "{locale}.json"))).toEqual([]);
   });
 
   it("returns no source files for missing literal targets", () => {

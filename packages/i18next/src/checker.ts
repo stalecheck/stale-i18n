@@ -5,6 +5,7 @@ import {
   parseSource,
   discoverSourceFiles,
   formatSourceTarget,
+  isConfigurationDiagnostic,
   sourceTargetExists,
   type CheckResult,
   type Diagnostic,
@@ -75,7 +76,7 @@ export class I18nextChecker implements TranslationChecker<I18nextCheckOptions> {
       diagnostics.push(...analyzed.diagnostics);
     }
 
-    if (targetExists) {
+    if (targetExists && !catalogResult.diagnostics.some(isConfigurationDiagnostic)) {
       diagnostics.push(...compareUsages(usages, catalogResult, merged));
     }
     return createResult(diagnostics, sourceFiles.length, catalogResult.catalogsChecked);

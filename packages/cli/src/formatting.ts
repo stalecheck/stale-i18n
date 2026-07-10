@@ -1,4 +1,4 @@
-import type { CheckResult, Diagnostic } from "@stale-i18n/core";
+import { isConfigurationDiagnostic, type CheckResult, type Diagnostic } from "@stale-i18n/core";
 
 export type CliRunResult = {
   exitCode: 0 | 1 | 2;
@@ -25,7 +25,7 @@ export function formatRunResult(result: CheckResult, format: CliFormat): CliRunR
 }
 
 function exitCodeForResult(result: CheckResult): 0 | 1 | 2 {
-  if (result.diagnostics.some((diagnostic) => diagnostic.code === "source-target-not-found")) {
+  if (result.diagnostics.some(isConfigurationDiagnostic)) {
     return 2;
   }
   return result.status === "FAIL" ? 1 : 0;

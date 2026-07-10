@@ -23,11 +23,7 @@ export function expandCatalogPattern(pattern: string): ExpandedCatalogPath[] {
   const absolutePattern = path.resolve(pattern);
   const root = fixedRoot(absolutePattern);
   if (!existsSync(root)) {
-    return [
-      {
-        filePath: absolutePattern.replaceAll("{locale}", "*").replaceAll("{namespace}", "*")
-      }
-    ];
+    return [];
   }
 
   const matcher = catalogPatternMatcher(absolutePattern);

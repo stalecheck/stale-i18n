@@ -4,6 +4,7 @@ import path from "node:path";
 import { parseSource } from "@stale-i18n/core";
 import { describe, expect, it } from "vitest";
 import { readCatalogs } from "../../src/catalogs.js";
+import { I18nextChecker } from "../../src/checker.js";
 import { analyzeProgram } from "../../src/source-analysis.js";
 import type { AnyNode } from "../../src/types.js";
 
@@ -280,6 +281,52 @@ describe("i18next catalog path metadata", () => {
       expect.objectContaining({ key: "valid", namespace: "common", locale: "en" })
     ]);
     expect(result.catalogsChecked).toBe(1);
+  });
+
+  it("fails configuration when an existing catalog root has no matches", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "i18next-empty-catalog-root-"));
+    const target = path.join(root, "src");
+    const catalogRoot = path.join(root, "locales");
+    const pattern = path.join(catalogRoot, "{locale}", "{namespace}.json");
+    mkdirSync(target, { recursive: true });
+    mkdirSync(catalogRoot, { recursive: true });
+
+    const result = new I18nextChecker({ target, catalogs: pattern }).checkSync();
+
+    expect(result).toEqual({
+      status: "FAIL",
+      filesChecked: 0,
+      catalogsChecked: 0,
+      diagnostics: [
+        expect.objectContaining({
+          code: "catalog-target-not-found",
+          severity: "error",
+          filePath: pattern
+        })
+      ]
+    });
+  });
+
+  it("fails configuration when the catalog target list is empty", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "i18next-empty-catalog-list-"));
+    const target = path.join(root, "src");
+    mkdirSync(target, { recursive: true });
+
+    const result = new I18nextChecker({ target, catalogs: [] }).checkSync();
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: "FAIL",
+        catalogsChecked: 0,
+        diagnostics: [
+          expect.objectContaining({
+            code: "catalog-target-not-found",
+            severity: "error",
+            message: "No catalog targets were configured."
+          })
+        ]
+      })
+    );
   });
 });
 

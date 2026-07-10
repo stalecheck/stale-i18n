@@ -264,6 +264,35 @@ describe("CLI", () => {
     );
   });
 
+  it("returns exit code 2 when a catalog pattern has no matches", async () => {
+    const dir = formatjsFixture();
+    const missingCatalogTarget = path.join(dir, "locales", "{locale}.yaml");
+
+    const result = await runCli([
+      "formatjs",
+      path.join(dir, "src"),
+      "--catalog",
+      missingCatalogTarget,
+      "--format",
+      "json"
+    ]);
+
+    expect(result.exitCode).toBe(2);
+    expect(JSON.parse(result.stdout)).toEqual(
+      expect.objectContaining({
+        status: "FAIL",
+        catalogsChecked: 0,
+        diagnostics: [
+          expect.objectContaining({
+            code: "catalog-target-not-found",
+            severity: "error",
+            filePath: missingCatalogTarget
+          })
+        ]
+      })
+    );
+  });
+
   it("prints Commander help for documented options", async () => {
     await expect(runCli(["i18next", "--help"])).resolves.toEqual(
       expect.objectContaining({

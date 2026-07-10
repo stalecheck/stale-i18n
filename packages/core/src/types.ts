@@ -17,7 +17,7 @@ export type RuleCode =
   | "catalog-parse-error"
   | "catalog-file-not-found";
 
-export type ConfigurationDiagnosticCode = "source-target-not-found";
+export type ConfigurationDiagnosticCode = "source-target-not-found" | "catalog-target-not-found";
 
 export type DiagnosticCode = RuleCode | ConfigurationDiagnosticCode;
 

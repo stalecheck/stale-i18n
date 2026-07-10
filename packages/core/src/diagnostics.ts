@@ -59,6 +59,14 @@ export function createConfigurationDiagnostic(
   };
 }
 
+export function isConfigurationDiagnostic(
+  diagnostic: Diagnostic
+): diagnostic is Diagnostic & { code: ConfigurationDiagnosticCode } {
+  return (
+    diagnostic.code === "source-target-not-found" || diagnostic.code === "catalog-target-not-found"
+  );
+}
+
 export function createResult(
   diagnostics: Array<Diagnostic | null>,
   filesChecked: number,

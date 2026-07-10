@@ -5,6 +5,7 @@ import {
   parseSource,
   discoverSourceFiles,
   formatSourceTarget,
+  isConfigurationDiagnostic,
   sourceTargetExists,
   type CheckResult,
   type Diagnostic,
@@ -76,7 +77,7 @@ export class FormatjsChecker implements TranslationChecker<FormatjsCheckOptions>
       usages.push(...analyzeProgram(parsed.program as AnyNode, source, filePath));
     }
 
-    if (targetExists) {
+    if (targetExists && !catalogResult.diagnostics.some(isConfigurationDiagnostic)) {
       diagnostics.push(...compareUsages(usages, catalogResult, merged));
     }
     return createResult(diagnostics, sourceFiles.length, catalogResult.catalogsChecked);
