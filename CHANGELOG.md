@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file. See [commit-and-tag-version](https://github.com/absolute-version/commit-and-tag-version) for commit guidelines.
 
+## [0.1.0-beta.4](https://github.com/stalecheck/stale-i18n/compare/v0.1.0-beta.3...v0.1.0-beta.4) (2026-07-10)
+
+
+### Features
+
+* catalog not found ([addbffb](https://github.com/stalecheck/stale-i18n/commit/addbffb2c92ddc81123905a9bc2344b0ff4f87c2))
+* invalid configuration ([f346ae9](https://github.com/stalecheck/stale-i18n/commit/f346ae94ca26c0ced757cabf678dd255f8df705b))
+* migrate to async ([91fc5d8](https://github.com/stalecheck/stale-i18n/commit/91fc5d81c1c4f481017b516951545b1bfaa652f1))
+* smoke tests and export catalogs ([0966685](https://github.com/stalecheck/stale-i18n/commit/096668556016abdfbff699fb7401e1ba0918285b))
+* support dynamic namespaces ([939d33f](https://github.com/stalecheck/stale-i18n/commit/939d33f13188b65bc2be75e1d3e5527cd0ab3d2e))
+
+
+### Bug Fixes
+
+* different keyseparators ([ad77677](https://github.com/stalecheck/stale-i18n/commit/ad77677accd94b893d07c196c574e07717fd8ccf))
+* namespaces order and locales ([432066c](https://github.com/stalecheck/stale-i18n/commit/432066cece658d393d7407acedcc862f0e752ec5))
+* scan all files ([7697541](https://github.com/stalecheck/stale-i18n/commit/76975419b24d65288393af9e550d5cff524a69a0))
+* support directo use pattern ([58be98d](https://github.com/stalecheck/stale-i18n/commit/58be98d8ad7e17ed28e92a676a4739658881c711))
+
 ## [0.1.0-beta.3](https://github.com/stalecheck/stale-i18n/compare/v0.1.0-beta.2...v0.1.0-beta.3) (2026-07-09)
 
 
