@@ -22,6 +22,69 @@ async function readPattern(root: string, pattern: string) {
 }
 
 describe("i18next catalog path metadata", () => {
+  it("resolves a default export through a top-level const and prefers it over named exports", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "i18next-static-default-catalog-"));
+    const catalogPath = path.join(root, "en.ts");
+    writeFileSync(
+      catalogPath,
+      `const metadata = { version: 1 };
+const messages = { title: "Title" } as const;
+export { metadata };
+export default messages;`
+    );
+
+    const result = await readCatalogs({ target: path.join(root, "src"), catalogs: catalogPath });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.entries).toEqual([
+      expect.objectContaining({ key: "title", namespace: "translation" })
+    ]);
+  });
+
+  it("resolves one named static catalog export, including an export specifier", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "i18next-static-named-catalog-"));
+    const catalogPath = path.join(root, "es.ts");
+    writeFileSync(
+      catalogPath,
+      `const messages = { title: "TÃ­tulo" } as const; export { messages };`
+    );
+
+    const result = await readCatalogs({ target: path.join(root, "src"), catalogs: catalogPath });
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.entries).toEqual([
+      expect.objectContaining({ key: "title", namespace: "translation" })
+    ]);
+  });
+
+  it("rejects ambiguous named exports and CommonJS catalogs", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "i18next-invalid-module-catalog-"));
+    const ambiguous = path.join(root, "en.ts");
+    const commonJs = path.join(root, "es.cjs");
+    writeFileSync(
+      ambiguous,
+      `export const first = { title: "Title" }; export const second = { save: "Save" };`
+    );
+    writeFileSync(commonJs, `module.exports = { title: "TÃ­tulo" };`);
+
+    const result = await readCatalogs({
+      target: path.join(root, "src"),
+      catalogs: [ambiguous, commonJs]
+    });
+
+    expect(result.entries).toEqual([]);
+    expect(result.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "catalog-parse-error",
+        message: expect.stringContaining("multiple named exports")
+      }),
+      expect.objectContaining({
+        code: "catalog-parse-error",
+        message: expect.stringContaining("CommonJS catalogs are not supported")
+      })
+    ]);
+  });
+
   it.each([
     {
       name: "namespace before locale",

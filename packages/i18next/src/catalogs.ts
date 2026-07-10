@@ -173,7 +173,10 @@ function virtualCatalogPath(namespace: string, locale: string | undefined): stri
 
 async function readCatalogFile(filePath: string): Promise<unknown> {
   const source = await readFile(filePath, "utf8");
-  if (/\.(?:ts|tsx|js|jsx|mjs|cjs)$/.test(filePath)) {
+  if (/\.cjs$/.test(filePath)) {
+    throw new Error(`CommonJS catalogs are not supported: ${filePath}`);
+  }
+  if (/\.(?:ts|tsx|js|jsx|mjs|mts|cts)$/.test(filePath)) {
     return readStaticModuleCatalog(filePath, source);
   }
   return JSON.parse(source) as unknown;
@@ -185,29 +188,75 @@ function readStaticModuleCatalog(filePath: string, source: string): unknown {
     throw new Error(parsed.diagnostics[0]?.message ?? "Catalog module could not be parsed");
   }
   const program = parsed.program as AnyNode;
+  const bindings = staticModuleBindings(program);
+  let namedExport: AnyNode | undefined;
   for (const statement of arrayOf<AnyNode>(program.body)) {
     if (statement.type === "ExportDefaultDeclaration") {
-      return evaluateStaticValue(unwrapExpression(statement.declaration as AnyNode), filePath);
+      return evaluateStaticValue(statement.declaration as AnyNode, filePath, bindings);
     }
     if (statement.type === "ExportNamedDeclaration") {
-      const declaration = statement.declaration as AnyNode | undefined;
-      if (declaration?.type === "VariableDeclaration") {
-        const candidates = arrayOf<AnyNode>(declaration.declarations)
-          .map((declarator) => declarator.init as AnyNode | undefined)
-          .filter((init): init is AnyNode => Boolean(init));
-        if (candidates.length === 1) {
-          return evaluateStaticValue(unwrapExpression(candidates[0]), filePath);
-        }
-      }
+      const candidate = namedStaticExport(statement, bindings);
+      if (!candidate) continue;
+      if (namedExport) throw new Error(`Catalog module has multiple named exports: ${filePath}`);
+      namedExport = candidate;
     }
   }
+  if (namedExport) return evaluateStaticValue(namedExport, filePath, bindings);
   throw new Error(`Catalog module must export one static object: ${filePath}`);
 }
 
-function evaluateStaticValue(node: AnyNode | undefined, filePath: string): unknown {
+function staticModuleBindings(program: AnyNode): Map<string, AnyNode> {
+  const bindings = new Map<string, AnyNode>();
+  for (const statement of arrayOf<AnyNode>(program.body)) {
+    if (statement.type !== "VariableDeclaration" || statement.kind !== "const") continue;
+    for (const declarator of arrayOf<AnyNode>(statement.declarations)) {
+      const name = identifierName(declarator.id as AnyNode | undefined);
+      const init = declarator.init as AnyNode | undefined;
+      if (name && init) bindings.set(name, init);
+    }
+  }
+  return bindings;
+}
+
+function namedStaticExport(
+  statement: AnyNode,
+  bindings: Map<string, AnyNode>
+): AnyNode | undefined {
+  const declaration = statement.declaration as AnyNode | undefined;
+  if (declaration?.type === "VariableDeclaration" && declaration.kind === "const") {
+    const declarators = arrayOf<AnyNode>(declaration.declarations);
+    if (declarators.length !== 1) return undefined;
+    return declarators[0]?.init as AnyNode | undefined;
+  }
+  const specifiers = arrayOf<AnyNode>(statement.specifiers);
+  if (specifiers.length !== 1) return undefined;
+  const local = identifierName(specifiers[0]?.local as AnyNode | undefined);
+  return local ? bindings.get(local) : undefined;
+}
+
+function evaluateStaticValue(
+  node: AnyNode | undefined,
+  filePath: string,
+  bindings: Map<string, AnyNode>,
+  resolving = new Set<string>(),
+  allowBinding = true
+): unknown {
   const expression = unwrapExpression(node);
   if (!expression) {
     throw new Error(`Catalog module contains an unsupported value in ${filePath}`);
+  }
+  const name = identifierName(expression);
+  if (name) {
+    if (!allowBinding) throw new Error(`Catalog module contains a dynamic value in ${filePath}`);
+    if (resolving.has(name)) {
+      throw new Error(`Catalog module contains a circular binding in ${filePath}`);
+    }
+    const binding = bindings.get(name);
+    if (!binding) throw new Error(`Catalog module contains a dynamic value in ${filePath}`);
+    resolving.add(name);
+    const value = evaluateStaticValue(binding, filePath, bindings, resolving, true);
+    resolving.delete(name);
+    return value;
   }
   if (expression.type === "ObjectExpression") {
     const result: Record<string, unknown> = {};
@@ -219,13 +268,19 @@ function evaluateStaticValue(node: AnyNode | undefined, filePath: string): unkno
       if (!key) {
         throw new Error(`Catalog module contains an unsupported object key in ${filePath}`);
       }
-      result[key] = evaluateStaticValue(property.value as AnyNode | undefined, filePath);
+      result[key] = evaluateStaticValue(
+        property.value as AnyNode | undefined,
+        filePath,
+        bindings,
+        resolving,
+        false
+      );
     }
     return result;
   }
   if (expression.type === "ArrayExpression") {
     return arrayOf<AnyNode>(expression.elements).map((element) =>
-      evaluateStaticValue(element, filePath)
+      evaluateStaticValue(element, filePath, bindings, resolving, false)
     );
   }
   if (expression.type === "Literal" || expression.type === "StringLiteral") {

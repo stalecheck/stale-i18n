@@ -72,3 +72,6 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Smoke test packaged consumer
+        run: pnpm run smoke:packages

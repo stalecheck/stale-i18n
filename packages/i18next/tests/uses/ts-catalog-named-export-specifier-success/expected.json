@@ -1,9 +1,6 @@
 {
   "options": {
-    "catalogs": "locales/{locale}.ts",
-    "rules": {
-      "missing-translation-key": "off"
-    }
+    "catalogs": "locales/{locale}/{namespace}.ts"
   },
   "result": {
     "status": "SUCCESS",

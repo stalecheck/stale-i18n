@@ -26,6 +26,7 @@
     "release": "commit-and-tag-version",
     "release:beta": "commit-and-tag-version --prerelease beta",
     "release:dry-run": "commit-and-tag-version --dry-run",
+    "smoke:packages": "node ./scripts/smoke-packages.mjs",
     "test": "vitest run --coverage",
     "typecheck": "pnpm -r typecheck"
   },
