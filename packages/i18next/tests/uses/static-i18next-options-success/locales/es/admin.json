@@ -1,0 +1,10 @@
+{
+  "header": {
+    "title_male": "Cabecera de administración",
+    "title_female": "Cabecera de administración"
+  },
+  "footer": {
+    "title_male": "Pie de administración",
+    "title_female": "Pie de administración"
+  }
+}

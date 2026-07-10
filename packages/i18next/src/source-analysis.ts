@@ -10,14 +10,12 @@ import {
   literalValue,
   locationFromIndex,
   resolveStaticStrings,
-  stringLiteral,
   walk,
   type Diagnostic,
   type BindingId,
   type SourceLocation,
   type StaticStringContext
 } from "@stale-i18n/core";
-import { jsxAttributes } from "./jsx.js";
 import {
   appendTranslationKeySuffix,
   displayTranslationKey,
@@ -69,7 +67,15 @@ export function analyzeProgram(
   walk(program, {
     enter(node) {
       if (node.type === "VariableDeclarator") {
-        collectTBinding(node, useTranslationBindings, tBindings, tObjectBindings, options, scope);
+        collectTBinding(
+          node,
+          useTranslationBindings,
+          tBindings,
+          tObjectBindings,
+          options,
+          scope,
+          staticStrings
+        );
         collectStaticStringBinding(node, staticStrings);
       } else if (node.type === "TSEnumDeclaration") {
         collectStaticStringEnum(node, staticStrings);
@@ -103,7 +109,7 @@ export function analyzeProgram(
             ...usageFromTCall(
               node,
               tObjectBindings.get(member.object) ?? {
-                namespace: options.defaultNamespace ?? "translation"
+                namespace: [options.defaultNamespace ?? "translation"]
               },
               source,
               filePath,
@@ -167,7 +173,7 @@ function collectImportedBindings(
       if (specifier.type === "ImportSpecifier" && identifierName(specifier.imported) === "t") {
         const local = scope.bindingId(specifier.local);
         if (local !== undefined) {
-          tBindings.set(local, { namespace: options.defaultNamespace ?? "translation" });
+          tBindings.set(local, { namespace: [options.defaultNamespace ?? "translation"] });
         }
       }
     }
@@ -184,7 +190,8 @@ function collectTBinding(
   tBindings: Map<BindingId, TBinding>,
   tObjectBindings: Map<BindingId, TBinding>,
   options: I18nextCheckOptions,
-  scope: ReturnType<typeof createSourceScope>
+  scope: ReturnType<typeof createSourceScope>,
+  staticStrings: StaticStringContext
 ) {
   const init = declarator.init as AnyNode | undefined;
   const calleeBinding = scope.bindingId(init?.callee);
@@ -195,7 +202,7 @@ function collectTBinding(
   ) {
     return;
   }
-  const binding = bindingFromUseTranslation(init, options);
+  const binding = bindingFromUseTranslation(init, options, staticStrings);
   const id = declarator.id as AnyNode | undefined;
   const direct = scope.bindingId(id);
   if (direct !== undefined) {
@@ -216,26 +223,31 @@ function collectTBinding(
   }
 }
 
-function bindingFromUseTranslation(call: AnyNode, options: I18nextCheckOptions): TBinding {
+function bindingFromUseTranslation(
+  call: AnyNode,
+  options: I18nextCheckOptions,
+  staticStrings: StaticStringContext
+): TBinding {
   const args = arrayOf<AnyNode>(call.arguments);
+  const namespaceNode = args[0];
   const namespace =
-    stringLiteral(args[0]) ??
-    (args[0]?.type === "ArrayExpression"
-      ? arrayOf<AnyNode>(args[0].elements)
-          .map((element) => stringLiteral(element))
-          .find((value): value is string => typeof value === "string")
-      : undefined) ??
-    options.defaultNamespace ??
-    "translation";
+    namespaceNode === undefined
+      ? [options.defaultNamespace ?? "translation"]
+      : namespaceNode.type === "ArrayExpression"
+        ? resolveStaticStrings(arrayOf<AnyNode>(namespaceNode.elements)[0], staticStrings)
+        : resolveStaticStrings(namespaceNode, staticStrings);
   const optionObject = args[1];
+  const keyPrefixNode = objectPropertyValue(optionObject, "keyPrefix");
   const keyPrefix =
-    optionObject?.type === "ObjectExpression"
-      ? arrayOf<AnyNode>(optionObject.properties)
-          .filter((property) => identifierName(property.key) === "keyPrefix")
-          .map((property) => stringLiteral(property.value as AnyNode))
-          .find((value): value is string => typeof value === "string")
-      : undefined;
-  return { namespace, ...(keyPrefix === undefined ? {} : { keyPrefix }) };
+    keyPrefixNode === undefined ? undefined : resolveStaticStrings(keyPrefixNode, staticStrings);
+  return {
+    ...(namespace === undefined ? {} : { namespace }),
+    ...(namespaceNode !== undefined && namespace === undefined
+      ? { unresolvedNamespace: true }
+      : {}),
+    ...(keyPrefix === undefined ? {} : { keyPrefix }),
+    ...(keyPrefixNode !== undefined && keyPrefix === undefined ? { unresolvedKeyPrefix: true } : {})
+  };
 }
 
 function usageFromTCall(
@@ -276,7 +288,7 @@ function usageFromTCall(
     ];
   }
 
-  const namespaceOverride = namespaceOverrideFromOptions(secondArg);
+  const namespaceOverride = namespaceOverrideFromOptions(secondArg, staticStrings);
   if (namespaceOverride === false) {
     return [
       {
@@ -290,24 +302,39 @@ function usageFromTCall(
     ];
   }
 
-  const variant = keyVariantFromOptions(secondArg);
+  const variant = keyVariantFromOptions(secondArg, staticStrings);
+  if (variant.unresolved)
+    return unresolvedUsage(secondArg ?? call, call, source, filePath, location, "call");
   const keySeparator = normalizeKeySeparator(options.keySeparator);
 
-  return keys.map((key) => {
+  const usages: I18nextSourceUsage[] = [];
+  for (const key of keys) {
     const resolved = resolveKey(key, binding, options, namespaceOverride);
-    const translationKey = variant.plural
-      ? resolved.key
-      : applyContext(resolved.key, variant.context);
-    return {
-      kind: "resolved" as const,
-      keyPath: translationKey,
-      message: messageFromTranslationKey(translationKey, resolved.namespace, keySeparator),
-      ...(variant.plural === undefined ? {} : { plural: variant.plural }),
-      filePath,
-      location,
-      sourceKind: "call" as const
-    };
-  });
+    if (resolved === undefined)
+      return unresolvedUsage(call, call, source, filePath, location, "call");
+    for (const target of resolved) {
+      for (const context of variant.contexts ?? [undefined]) {
+        const translationKey = variant.plural ? target.key : applyContext(target.key, context);
+        usages.push({
+          kind: "resolved",
+          keyPath: translationKey,
+          message: messageFromTranslationKey(translationKey, target.namespace, keySeparator),
+          ...(variant.plural === undefined
+            ? {}
+            : {
+                plural: {
+                  ...(context === undefined ? {} : { context }),
+                  ordinal: variant.plural.ordinal
+                }
+              }),
+          filePath,
+          location,
+          sourceKind: "call"
+        });
+      }
+    }
+  }
+  return usages;
 }
 
 function usagesFromTrans(
@@ -317,7 +344,6 @@ function usagesFromTrans(
   options: I18nextCheckOptions,
   staticStrings: StaticStringContext
 ): I18nextSourceUsage[] {
-  const attrs = jsxAttributes(element);
   const keyAttribute = jsxAttributeNode(element, "i18nKey");
   if (!keyAttribute) {
     return [];
@@ -341,56 +367,93 @@ function usagesFromTrans(
   }
 
   const tOptions = jsxObjectAttributeNode(element, "tOptions");
-  const optionVariant = keyVariantFromOptions(tOptions);
+  const optionVariant = keyVariantFromOptions(tOptions, staticStrings);
+  const contextAttribute = jsxAttributeNode(element, "context");
+  const contexts = contextAttribute
+    ? resolveJsxAttributeValues(contextAttribute, staticStrings)
+    : (optionVariant.contexts ?? [undefined]);
+  const namespaceAttribute = jsxAttributeNode(element, "ns");
+  const namespaces = namespaceAttribute
+    ? resolveJsxAttributeValues(namespaceAttribute, staticStrings)
+    : [options.defaultNamespace ?? "translation"];
+  if (optionVariant.unresolved || contexts === undefined || namespaces === undefined) {
+    return unresolvedUsage(
+      element,
+      element,
+      source,
+      filePath,
+      nodeLocation(element, source),
+      "jsx-component"
+    );
+  }
   const hasCount = jsxAttributeNode(element, "count") !== undefined;
-  const context = attrs.get("context") ?? optionVariant.context;
   const plural = hasCount
-    ? {
-        ...(context === undefined ? {} : { context }),
-        ordinal: optionVariant.plural?.ordinal ?? ordinalFromOptions(tOptions)
-      }
+    ? { ordinal: optionVariant.plural?.ordinal ?? ordinalFromOptions(tOptions) }
     : optionVariant.plural;
   const keySeparator = normalizeKeySeparator(options.keySeparator);
 
-  return keys.map((key) => {
-    const parsedKey = parseTranslationKey(key, keySeparator);
-    const translationKey = plural ? parsedKey : applyContext(parsedKey, context);
-    const namespace = attrs.get("ns") ?? options.defaultNamespace ?? "translation";
-    return {
-      kind: "resolved",
-      keyPath: translationKey,
-      message: messageFromTranslationKey(translationKey, namespace, keySeparator),
-      ...(plural === undefined ? {} : { plural }),
-      filePath,
-      location: nodeLocation(element, source),
-      sourceKind: "jsx-component"
-    };
-  });
+  return keys.flatMap((key) =>
+    namespaces.flatMap((namespace) =>
+      contexts.map((context) => {
+        const parsedKey = parseTranslationKey(key, keySeparator);
+        const translationKey = plural ? parsedKey : applyContext(parsedKey, context);
+        return {
+          kind: "resolved",
+          keyPath: translationKey,
+          message: messageFromTranslationKey(translationKey, namespace, keySeparator),
+          ...(plural === undefined
+            ? {}
+            : {
+                plural: { ...(context === undefined ? {} : { context }), ordinal: plural.ordinal }
+              }),
+          filePath,
+          location: nodeLocation(element, source),
+          sourceKind: "jsx-component"
+        };
+      })
+    )
+  );
 }
 
 function resolveKey(
   rawKey: string,
   binding: TBinding,
   options: I18nextCheckOptions,
-  namespaceOverride: string | undefined
-): { namespace: string; key: TranslationKey } {
+  namespaceOverride: string[] | undefined
+): Array<{ namespace: string; key: TranslationKey }> | undefined {
   const namespaceSeparator =
     options.namespaceSeparator === false ? false : (options.namespaceSeparator ?? ":");
   const keySeparator = normalizeKeySeparator(options.keySeparator);
   if (namespaceSeparator !== false && rawKey.includes(namespaceSeparator)) {
     const [namespace, ...rest] = rawKey.split(namespaceSeparator);
-    return {
-      namespace: namespace!,
-      key: parseTranslationKey(rest.join(namespaceSeparator), keySeparator)
-    };
+    return [
+      {
+        namespace: namespace!,
+        key: parseTranslationKey(rest.join(namespaceSeparator), keySeparator)
+      }
+    ];
   }
-  return {
-    namespace: namespaceOverride ?? binding.namespace,
-    key: prependTranslationKey(binding.keyPrefix, rawKey, keySeparator)
-  };
+  const namespaces = namespaceOverride ?? binding.namespace;
+  if (
+    namespaces === undefined ||
+    binding.unresolvedKeyPrefix ||
+    (namespaceOverride === undefined && binding.unresolvedNamespace)
+  ) {
+    return undefined;
+  }
+  const prefixes = binding.keyPrefix ?? [undefined];
+  return namespaces.flatMap((namespace) =>
+    prefixes.map((keyPrefix) => ({
+      namespace,
+      key: prependTranslationKey(keyPrefix, rawKey, keySeparator)
+    }))
+  );
 }
 
-function namespaceOverrideFromOptions(node: AnyNode | undefined): string | false | undefined {
+function namespaceOverrideFromOptions(
+  node: AnyNode | undefined,
+  staticStrings: StaticStringContext
+): string[] | false | undefined {
   if (!node || node.type !== "ObjectExpression") {
     return undefined;
   }
@@ -400,35 +463,65 @@ function namespaceOverrideFromOptions(node: AnyNode | undefined): string | false
   if (!nsProperty) {
     return undefined;
   }
-  return stringLiteral(nsProperty.value) ?? false;
+  return resolveStaticStrings(nsProperty.value as AnyNode, staticStrings) ?? false;
 }
 
 type KeyVariant = {
-  context?: string | undefined;
+  contexts?: string[];
   plural?: PluralUsage;
+  unresolved?: boolean;
 };
 
-function keyVariantFromOptions(node: AnyNode | undefined): KeyVariant {
+function keyVariantFromOptions(
+  node: AnyNode | undefined,
+  staticStrings: StaticStringContext
+): KeyVariant {
   if (!node || node.type !== "ObjectExpression") {
     return {};
   }
 
   const properties = arrayOf<AnyNode>(node.properties);
   const hasCount = properties.some((property) => identifierName(property.key) === "count");
-  const context = properties
-    .filter((property) => identifierName(property.key) === "context")
-    .map((property) => stringLiteral(property.value as AnyNode))
-    .find((value): value is string => typeof value === "string");
+  const contextNode = objectPropertyValue(node, "context");
+  const contexts =
+    contextNode === undefined ? undefined : resolveStaticStrings(contextNode, staticStrings);
+  if (contextNode !== undefined && contexts === undefined) return { unresolved: true };
 
   if (hasCount) {
     const ordinal = ordinalFromOptions(node);
     return {
-      ...(context === undefined ? {} : { context }),
-      plural: { ...(context === undefined ? {} : { context }), ordinal }
+      ...(contexts === undefined ? {} : { contexts }),
+      plural: { ordinal }
     };
   }
 
-  return { ...(context === undefined ? {} : { context }) };
+  return { ...(contexts === undefined ? {} : { contexts }) };
+}
+
+function objectPropertyValue(node: AnyNode | undefined, name: string): AnyNode | undefined {
+  if (node?.type !== "ObjectExpression") return undefined;
+  return arrayOf<AnyNode>(node.properties).find((property) => identifierName(property.key) === name)
+    ?.value as AnyNode | undefined;
+}
+
+function unresolvedUsage(
+  rawNode: AnyNode,
+  call: AnyNode,
+  source: string,
+  filePath: string,
+  location: SourceLocation,
+  sourceKind: "call" | "jsx-component"
+): I18nextSourceUsage[] {
+  return [
+    {
+      kind: "unresolved",
+      raw: source.slice(rawNode.start ?? call.start ?? 0, rawNode.end ?? call.end ?? 0),
+      reason: "dynamic-key",
+      filePath,
+      location,
+      sourceKind
+    }
+  ];
 }
 
 function ordinalFromOptions(node: AnyNode | undefined): boolean {

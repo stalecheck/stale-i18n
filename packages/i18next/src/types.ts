@@ -18,8 +18,10 @@ export type I18nextCatalogInput = string | CatalogConfigI18n;
 export type I18nextCatalogs = I18nextCatalogInput | I18nextCatalogInput[];
 
 export type TBinding = {
-  namespace: string;
-  keyPrefix?: string;
+  namespace?: string[];
+  keyPrefix?: string[];
+  unresolvedNamespace?: boolean;
+  unresolvedKeyPrefix?: boolean;
 };
 
 export type PluralUsage = {

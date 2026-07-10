@@ -353,4 +353,85 @@ import { useTranslation } from "react-i18next";
       })
     ]);
   });
+
+  it("does not replace a dynamic namespace or keyPrefix with the defaults", () => {
+    const source = `
+import { useTranslation } from "react-i18next";
+declare const namespace: string;
+declare const prefix: string;
+const { t } = useTranslation(namespace, { keyPrefix: prefix });
+t("title");
+`;
+    const parsed = parseSource("src/app.ts", source);
+    expect(parsed.program).not.toBeNull();
+    if (parsed.program === null) throw new Error("Expected the test source to parse");
+
+    const result = analyzeProgram(parsed.program as AnyNode, source, "src/app.ts", {
+      target: "src",
+      catalogs: "locales/{locale}/{namespace}.json"
+    });
+
+    expect(result.usages).toEqual([
+      expect.objectContaining({ kind: "unresolved", reason: "dynamic-key" })
+    ]);
+  });
+
+  it("enumerates finite static namespaces, key prefixes and contexts", () => {
+    const source = `
+import { useTranslation } from "react-i18next";
+declare const enabled: boolean;
+const namespace = enabled ? "admin" : "account";
+const prefix = enabled ? "header" : "footer";
+const context = enabled ? "male" : "female";
+const { t } = useTranslation(namespace, { keyPrefix: prefix });
+t("title", { context });
+`;
+    const parsed = parseSource("src/app.ts", source);
+    expect(parsed.program).not.toBeNull();
+    if (parsed.program === null) throw new Error("Expected the test source to parse");
+
+    const result = analyzeProgram(parsed.program as AnyNode, source, "src/app.ts", {
+      target: "src",
+      catalogs: "locales/{locale}/{namespace}.json"
+    });
+
+    expect(result.usages).toHaveLength(8);
+    expect(result.usages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "resolved",
+          message: { namespace: "admin", id: "header.title_male" }
+        }),
+        expect.objectContaining({
+          kind: "resolved",
+          message: { namespace: "account", id: "footer.title_female" }
+        })
+      ])
+    );
+  });
+
+  it("reports dynamic Trans namespace and context instead of using defaults", () => {
+    const source = `
+import { Trans } from "react-i18next";
+declare const namespace: string;
+declare const context: string;
+export const view = <Trans i18nKey="title" ns={namespace} context={context} />;
+`;
+    const parsed = parseSource("src/app.tsx", source);
+    expect(parsed.program).not.toBeNull();
+    if (parsed.program === null) throw new Error("Expected the test source to parse");
+
+    const result = analyzeProgram(parsed.program as AnyNode, source, "src/app.tsx", {
+      target: "src",
+      catalogs: "locales/{locale}/{namespace}.json"
+    });
+
+    expect(result.usages).toEqual([
+      expect.objectContaining({
+        kind: "unresolved",
+        reason: "dynamic-key",
+        sourceKind: "jsx-component"
+      })
+    ]);
+  });
 });
