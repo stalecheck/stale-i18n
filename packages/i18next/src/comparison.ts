@@ -1,10 +1,20 @@
 import { createDiagnostic, type Diagnostic } from "@stale-i18n/core";
+import {
+  appendTranslationKeySuffix,
+  displayTranslationKey,
+  normalizeKeySeparator,
+  parseTranslationKey,
+  translationKeyHasSameParent,
+  translationKeyId,
+  translationKeyLeaf
+} from "./key-path.js";
 import type {
   CatalogEntry,
   CatalogReadResult,
   I18nextCheckOptions,
   I18nextSourceUsage,
-  PluralUsage
+  PluralUsage,
+  TranslationKey
 } from "./types.js";
 
 export function compareUsages(
@@ -15,7 +25,7 @@ export function compareUsages(
   const diagnostics: Array<Diagnostic | null> = [];
   const catalogKeys = new Map<string, CatalogEntry[]>();
   for (const entry of catalogs.entries) {
-    const id = catalogId(entry.namespace, entry.key);
+    const id = catalogId(entry.namespace, entry.keyPath);
     const existing = catalogKeys.get(id) ?? [];
     existing.push(entry);
     catalogKeys.set(id, existing);
@@ -41,14 +51,14 @@ export function compareUsages(
 
     const namespace = usage.message.namespace ?? options.defaultNamespace ?? "translation";
     if (usage.plural) {
-      const family = pluralFamily(usage.message.id, usage.plural);
+      const family = pluralFamily(usage.keyPath, usage.plural);
       const familyId = catalogId(namespace, family);
       const matchingEntries = catalogs.entries.filter(
-        (entry) => entry.namespace === namespace && isPluralFamilyMember(entry.key, family)
+        (entry) => entry.namespace === namespace && isPluralFamilyMember(entry.keyPath, family)
       );
 
       for (const entry of matchingEntries) {
-        const id = catalogId(entry.namespace, entry.key);
+        const id = catalogId(entry.namespace, entry.keyPath);
         usedIds.add(id);
         pluralCatalogIds.add(id);
       }
@@ -91,7 +101,7 @@ export function compareUsages(
       continue;
     }
 
-    const id = catalogId(namespace, usage.message.id);
+    const id = catalogId(namespace, usage.keyPath);
     usedIds.add(id);
     if (!catalogKeys.has(id)) {
       diagnostics.push(
@@ -112,6 +122,7 @@ export function compareUsages(
 
   for (const [id, entries] of catalogKeys) {
     const first = entries[0]!;
+    const displayKey = first.key;
     if (!pluralCatalogIds.has(id)) {
       const locales = new Map(entries.map((entry) => [entry.locale, entry]));
       const allLocales = catalogs.localesByNamespace.get(first.namespace) ?? new Set<string>();
@@ -121,12 +132,12 @@ export function compareUsages(
             createDiagnostic({
               code: "missing-locale-key",
               rules: options.rules,
-              message: `Translation key "${first.key}" is missing in locale "${locale}"`,
+              message: `Translation key "${displayKey}" is missing in locale "${locale}"`,
               filePath: first.filePath,
               catalogPath: first.filePath,
               line: 1,
               column: 1,
-              key: first.key,
+              key: displayKey,
               locale
             })
           );
@@ -161,12 +172,12 @@ export function compareUsages(
         createDiagnostic({
           code: "unused-translation-key",
           rules: options.rules,
-          message: `Translation key "${first.key}" is never used`,
+          message: `Translation key "${displayKey}" is never used`,
           filePath: first.filePath,
           catalogPath: first.filePath,
           line: 1,
           column: 1,
-          key: first.key,
+          key: displayKey,
           locale: first.locale
         })
       );
@@ -176,26 +187,31 @@ export function compareUsages(
   return diagnostics;
 }
 
-function catalogId(namespace: string, key: string): string {
-  return `${namespace}:${key}`;
+function catalogId(namespace: string, key: TranslationKey): string {
+  return JSON.stringify([namespace, translationKeyId(key)]);
 }
 
 const PLURAL_CATEGORIES = new Set(["zero", "one", "two", "few", "many", "other"]);
 
-function pluralFamily(key: string, plural: PluralUsage): string {
+function pluralFamily(key: TranslationKey, plural: PluralUsage): TranslationKey {
   const context = plural.context === undefined ? "" : `_${plural.context}`;
   const ordinal = plural.ordinal ? "_ordinal" : "";
-  return `${key}${context}${ordinal}`;
+  return appendTranslationKeySuffix(key, `${context}${ordinal}`);
 }
 
-function isPluralFamilyMember(key: string, family: string): boolean {
-  if (key === family) {
-    return true;
-  }
-  if (!key.startsWith(`${family}_`)) {
+function isPluralFamilyMember(key: TranslationKey, family: TranslationKey): boolean {
+  if (!translationKeyHasSameParent(key, family)) {
     return false;
   }
-  return PLURAL_CATEGORIES.has(key.slice(family.length + 1));
+  const keyLeaf = translationKeyLeaf(key);
+  const familyLeaf = translationKeyLeaf(family);
+  if (keyLeaf === familyLeaf) {
+    return true;
+  }
+  if (!keyLeaf.startsWith(`${familyLeaf}_`)) {
+    return false;
+  }
+  return PLURAL_CATEGORIES.has(keyLeaf.slice(familyLeaf.length + 1));
 }
 
 function markNestedCatalogUsages(
@@ -227,16 +243,20 @@ function markNestedCatalogUsages(
 
         if (!catalogKeys.has(referenceId) && !missingNestedIds.has(referenceId)) {
           missingNestedIds.add(referenceId);
+          const referenceKey = displayTranslationKey(
+            reference.key,
+            normalizeKeySeparator(options.keySeparator)
+          );
           diagnostics.push(
             createDiagnostic({
               code: "missing-translation-key",
               rules: options.rules,
-              message: `Missing translation key "${reference.key}"`,
+              message: `Missing translation key "${referenceKey}"`,
               filePath: entry.filePath,
               catalogPath: entry.filePath,
               line: 1,
               column: 1,
-              key: reference.key,
+              key: referenceKey,
               locale: entry.locale
             })
           );
@@ -250,12 +270,12 @@ function nestedReferences(
   value: unknown,
   namespace: string,
   options: I18nextCheckOptions
-): Array<{ namespace: string; key: string }> {
+): Array<{ namespace: string; key: TranslationKey }> {
   if (typeof value !== "string") {
     return [];
   }
 
-  const references: Array<{ namespace: string; key: string }> = [];
+  const references: Array<{ namespace: string; key: TranslationKey }> = [];
   const pattern = /\$t\(\s*([^,)]+)(?:,[^)]*)?\)/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(value)) !== null) {
@@ -271,12 +291,16 @@ function resolveNestedReference(
   rawKey: string,
   namespace: string,
   options: I18nextCheckOptions
-): { namespace: string; key: string } {
+): { namespace: string; key: TranslationKey } {
   const namespaceSeparator =
     options.namespaceSeparator === false ? false : (options.namespaceSeparator ?? ":");
+  const keySeparator = normalizeKeySeparator(options.keySeparator);
   if (namespaceSeparator !== false && rawKey.includes(namespaceSeparator)) {
     const [nestedNamespace, ...rest] = rawKey.split(namespaceSeparator);
-    return { namespace: nestedNamespace!, key: rest.join(namespaceSeparator) };
+    return {
+      namespace: nestedNamespace!,
+      key: parseTranslationKey(rest.join(namespaceSeparator), keySeparator)
+    };
   }
-  return { namespace, key: rawKey };
+  return { namespace, key: parseTranslationKey(rawKey, keySeparator) };
 }

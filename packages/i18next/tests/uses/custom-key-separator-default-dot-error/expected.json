@@ -1,0 +1,20 @@
+{
+  "options": {
+    "keySeparator": "/"
+  },
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "missing-translation-key",
+        "key": "section.title"
+      },
+      {
+        "code": "unused-translation-key",
+        "key": "section/title"
+      }
+    ]
+  }
+}

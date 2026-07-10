@@ -9,6 +9,13 @@ import {
 } from "@stale-i18n/core";
 import { existsSync, readFileSync } from "node:fs";
 import type { CatalogConfigI18n } from "./catalog-config.js";
+import {
+  displayTranslationKey,
+  normalizeKeySeparator,
+  parseTranslationKey,
+  translationKeyFromSegments,
+  type KeySeparator
+} from "./key-path.js";
 import type {
   AnyNode,
   CatalogEntry,
@@ -220,39 +227,60 @@ export function flattenCatalog(
     locale?: string | undefined;
     filePath: string;
     keySeparator?: string | false | undefined;
+  }
+): CatalogEntry[] {
+  return flattenCatalogValue(value, context, normalizeKeySeparator(context.keySeparator), []);
+}
+
+function flattenCatalogValue(
+  value: unknown,
+  context: {
+    namespace: string;
+    locale?: string | undefined;
+    filePath: string;
   },
-  prefix = ""
+  keySeparator: KeySeparator,
+  segments: string[]
 ): CatalogEntry[] {
   if (
-    context.keySeparator === false &&
-    prefix === "" &&
+    keySeparator === false &&
+    segments.length === 0 &&
     value !== null &&
     typeof value === "object" &&
     !Array.isArray(value)
   ) {
-    return Object.entries(value as Record<string, unknown>).map(([key, child]) => ({
-      key,
-      namespace: context.namespace,
-      ...(context.locale === undefined ? {} : { locale: context.locale }),
-      filePath: context.filePath,
-      value: child
-    }));
+    return Object.entries(value as Record<string, unknown>).map(([key, child]) => {
+      const keyPath = parseTranslationKey(key, keySeparator);
+      return {
+        key,
+        keyPath,
+        namespace: context.namespace,
+        ...(context.locale === undefined ? {} : { locale: context.locale }),
+        filePath: context.filePath,
+        value: child
+      };
+    });
   }
 
   if (
-    context.keySeparator !== false &&
+    keySeparator !== false &&
     value !== null &&
     typeof value === "object" &&
     !Array.isArray(value)
   ) {
     return Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
-      flattenCatalog(child, context, prefix === "" ? key : `${prefix}.${key}`)
+      flattenCatalogValue(child, context, keySeparator, [...segments, ...key.split(keySeparator)])
     );
   }
 
+  const keyPath =
+    keySeparator === false
+      ? parseTranslationKey("", keySeparator)
+      : translationKeyFromSegments(segments);
   return [
     {
-      key: prefix,
+      key: displayTranslationKey(keyPath, keySeparator),
+      keyPath,
       namespace: context.namespace,
       ...(context.locale === undefined ? {} : { locale: context.locale }),
       filePath: context.filePath,

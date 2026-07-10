@@ -1,0 +1,12 @@
+{
+  "shared": {
+    "title": "Shared title"
+  },
+  "section": {
+    "title": "Section title"
+  },
+  "cart": {
+    "items_one": "One item",
+    "items_other": "{{count}} items"
+  }
+}

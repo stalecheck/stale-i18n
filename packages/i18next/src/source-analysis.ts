@@ -18,13 +18,21 @@ import {
   type StaticStringContext
 } from "@stale-i18n/core";
 import { jsxAttributes } from "./jsx.js";
+import {
+  appendTranslationKeySuffix,
+  displayTranslationKey,
+  normalizeKeySeparator,
+  parseTranslationKey,
+  prependTranslationKey
+} from "./key-path.js";
 import { rawUiTextDiagnostic } from "./raw-text.js";
 import type {
   AnyNode,
   I18nextCheckOptions,
   I18nextSourceUsage,
   PluralUsage,
-  TBinding
+  TBinding,
+  TranslationKey
 } from "./types.js";
 
 export function analyzeProgram(
@@ -283,15 +291,17 @@ function usageFromTCall(
   }
 
   const variant = keyVariantFromOptions(secondArg);
+  const keySeparator = normalizeKeySeparator(options.keySeparator);
 
   return keys.map((key) => {
     const resolved = resolveKey(key, binding, options, namespaceOverride);
+    const translationKey = variant.plural
+      ? resolved.key
+      : applyContext(resolved.key, variant.context);
     return {
       kind: "resolved" as const,
-      message: {
-        id: variant.plural ? resolved.key : applyContext(resolved.key, variant.context),
-        namespace: resolved.namespace
-      },
+      keyPath: translationKey,
+      message: messageFromTranslationKey(translationKey, resolved.namespace, keySeparator),
       ...(variant.plural === undefined ? {} : { plural: variant.plural }),
       filePath,
       location,
@@ -340,15 +350,16 @@ function usagesFromTrans(
         ordinal: optionVariant.plural?.ordinal ?? ordinalFromOptions(tOptions)
       }
     : optionVariant.plural;
+  const keySeparator = normalizeKeySeparator(options.keySeparator);
 
   return keys.map((key) => {
-    const id = plural ? key : applyContext(key, context);
+    const parsedKey = parseTranslationKey(key, keySeparator);
+    const translationKey = plural ? parsedKey : applyContext(parsedKey, context);
+    const namespace = attrs.get("ns") ?? options.defaultNamespace ?? "translation";
     return {
       kind: "resolved",
-      message: {
-        id,
-        namespace: attrs.get("ns") ?? options.defaultNamespace ?? "translation"
-      },
+      keyPath: translationKey,
+      message: messageFromTranslationKey(translationKey, namespace, keySeparator),
       ...(plural === undefined ? {} : { plural }),
       filePath,
       location: nodeLocation(element, source),
@@ -362,16 +373,20 @@ function resolveKey(
   binding: TBinding,
   options: I18nextCheckOptions,
   namespaceOverride: string | undefined
-): { namespace: string; key: string } {
+): { namespace: string; key: TranslationKey } {
   const namespaceSeparator =
     options.namespaceSeparator === false ? false : (options.namespaceSeparator ?? ":");
+  const keySeparator = normalizeKeySeparator(options.keySeparator);
   if (namespaceSeparator !== false && rawKey.includes(namespaceSeparator)) {
     const [namespace, ...rest] = rawKey.split(namespaceSeparator);
-    return { namespace: namespace!, key: rest.join(namespaceSeparator) };
+    return {
+      namespace: namespace!,
+      key: parseTranslationKey(rest.join(namespaceSeparator), keySeparator)
+    };
   }
   return {
     namespace: namespaceOverride ?? binding.namespace,
-    key: binding.keyPrefix ? `${binding.keyPrefix}.${rawKey}` : rawKey
+    key: prependTranslationKey(binding.keyPrefix, rawKey, keySeparator)
   };
 }
 
@@ -426,8 +441,19 @@ function ordinalFromOptions(node: AnyNode | undefined): boolean {
   );
 }
 
-function applyContext(key: string, context: string | undefined) {
-  return context === undefined ? key : `${key}_${context}`;
+function applyContext(key: TranslationKey, context: string | undefined): TranslationKey {
+  return context === undefined ? key : appendTranslationKeySuffix(key, `_${context}`);
+}
+
+function messageFromTranslationKey(
+  key: TranslationKey,
+  namespace: string,
+  separator: ReturnType<typeof normalizeKeySeparator>
+) {
+  return {
+    id: displayTranslationKey(key, separator),
+    namespace
+  };
 }
 
 function memberExpressionName(

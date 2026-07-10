@@ -27,14 +27,26 @@ export type PluralUsage = {
   ordinal: boolean;
 };
 
+export type TranslationKey =
+  | {
+      kind: "literal";
+      value: string;
+    }
+  | {
+      kind: "path";
+      segments: string[];
+    };
+
 export type I18nextSourceUsage =
   | Extract<SourceUsage, { kind: "unresolved" }>
   | (Extract<SourceUsage, { kind: "resolved" }> & {
+      keyPath: TranslationKey;
       plural?: PluralUsage;
     });
 
 export type CatalogEntry = {
   key: string;
+  keyPath: TranslationKey;
   namespace: string;
   locale?: string;
   filePath: string;
