@@ -125,8 +125,8 @@ function staticModuleBindings(program: AnyNode): Map<string, AnyNode> {
   for (const statement of arrayOf<AnyNode>(program.body)) {
     if (statement.type !== "VariableDeclaration" || statement.kind !== "const") continue;
     for (const declarator of arrayOf<AnyNode>(statement.declarations)) {
-      const name = identifierName(declarator.id as AnyNode | undefined);
-      const init = declarator.init as AnyNode | undefined;
+      const name = identifierName(declarator.id);
+      const init = declarator.init;
       if (name && init) bindings.set(name, init);
     }
   }
@@ -145,7 +145,7 @@ function namedStaticExport(
   }
   const specifiers = arrayOf<AnyNode>(statement.specifiers);
   if (specifiers.length !== 1) return undefined;
-  const local = identifierName(specifiers[0]?.local as AnyNode | undefined);
+  const local = identifierName(specifiers[0]?.local);
   return local ? bindings.get(local) : undefined;
 }
 
