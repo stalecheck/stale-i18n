@@ -142,7 +142,9 @@ export function analyzeProgram(
         const opening = node.openingElement as AnyNode | undefined;
         const binding = scope.bindingId(opening?.name);
         if (binding !== undefined && transBindings.has(binding)) {
-          usages.push(...usagesFromTrans(node, source, filePath, options, staticStrings));
+          usages.push(
+            ...usagesFromTrans(node, source, filePath, options, staticStrings, scope, tBindings)
+          );
         }
       }
 
@@ -251,15 +253,20 @@ function bindingFromUseTranslation(
   const namespace =
     namespaceNode === undefined
       ? [options.defaultNamespace ?? "translation"]
-      : namespaceNode.type === "ArrayExpression"
-        ? resolveStaticStrings(arrayOf<AnyNode>(namespaceNode.elements)[0], staticStrings)
-        : resolveStaticStrings(namespaceNode, staticStrings);
+      : resolveStaticStringArray(namespaceNode, staticStrings);
+  const namespaceFallbacks =
+    namespaceNode?.type === "ArrayExpression" && namespace !== undefined
+      ? namespace.slice(1)
+      : undefined;
   const optionObject = args[1];
   const keyPrefixNode = objectPropertyValue(optionObject, "keyPrefix");
   const keyPrefix =
     keyPrefixNode === undefined ? undefined : resolveStaticStrings(keyPrefixNode, staticStrings);
   return {
-    ...(namespace === undefined ? {} : { namespace }),
+    ...(namespace === undefined
+      ? {}
+      : { namespace: namespaceFallbacks === undefined ? namespace : namespace.slice(0, 1) }),
+    ...(namespaceFallbacks?.length ? { namespaceFallbacks } : {}),
     ...(namespaceNode !== undefined && namespace === undefined
       ? { unresolvedNamespace: true }
       : {}),
@@ -336,7 +343,12 @@ function usageFromTCall(
         usages.push({
           kind: "resolved",
           keyPath: translationKey,
-          message: messageFromTranslationKey(translationKey, target.namespace, keySeparator),
+          message: messageFromTranslationKey(
+            translationKey,
+            target.namespace,
+            keySeparator,
+            target.namespaceFallbacks
+          ),
           ...(variant.plural === undefined
             ? {}
             : {
@@ -360,7 +372,9 @@ function usagesFromTrans(
   source: string,
   filePath: string,
   options: I18nextCheckOptions,
-  staticStrings: StaticStringContext
+  staticStrings: StaticStringContext,
+  scope: ReturnType<typeof createSourceScope>,
+  tBindings: Map<BindingId, TBinding>
 ): I18nextSourceUsage[] {
   const keyAttribute = jsxAttributeNode(element, "i18nKey");
   if (!keyAttribute) {
@@ -391,10 +405,27 @@ function usagesFromTrans(
     ? resolveJsxAttributeValues(contextAttribute, staticStrings)
     : (optionVariant.contexts ?? [undefined]);
   const namespaceAttribute = jsxAttributeNode(element, "ns");
+  const namespaceExpression = jsxExpressionAttributeValue(namespaceAttribute);
+  const tAttribute = jsxAttributeNode(element, "t");
+  const tBindingId = scope.bindingId(jsxExpressionAttributeValue(tAttribute));
+  const tBinding = tBindingId === undefined ? undefined : tBindings.get(tBindingId);
   const namespaces = namespaceAttribute
-    ? resolveJsxAttributeValues(namespaceAttribute, staticStrings)
-    : [options.defaultNamespace ?? "translation"];
-  if (optionVariant.unresolved || contexts === undefined || namespaces === undefined) {
+    ? resolveJsxAttributeValues(namespaceAttribute, staticStrings, true)
+    : (tBinding?.namespace ?? [options.defaultNamespace ?? "translation"]);
+  const namespaceFallbacks =
+    namespaceExpression?.type === "ArrayExpression"
+      ? namespaces?.slice(1)
+      : tBinding?.namespaceFallbacks;
+  const primaryNamespaces =
+    namespaceExpression?.type === "ArrayExpression" ? namespaces?.slice(0, 1) : namespaces;
+  const keyPrefixes = tBinding?.keyPrefix ?? [undefined];
+  if (
+    optionVariant.unresolved ||
+    contexts === undefined ||
+    primaryNamespaces === undefined ||
+    (tAttribute !== undefined &&
+      (tBinding === undefined || tBinding.unresolvedNamespace || tBinding.unresolvedKeyPrefix))
+  ) {
     return unresolvedUsage(
       element,
       element,
@@ -409,26 +440,44 @@ function usagesFromTrans(
     ? { ordinal: optionVariant.plural?.ordinal ?? ordinalFromOptions(tOptions) }
     : optionVariant.plural;
   const keySeparator = normalizeKeySeparator(options.keySeparator);
+  const namespaceSeparator =
+    options.namespaceSeparator === false ? false : (options.namespaceSeparator ?? ":");
 
   return keys.flatMap((key) =>
-    namespaces.flatMap((namespace) =>
-      contexts.map((context) => {
-        const parsedKey = parseTranslationKey(key, keySeparator);
-        const translationKey = plural ? parsedKey : applyContext(parsedKey, context);
-        return {
-          kind: "resolved",
-          keyPath: translationKey,
-          message: messageFromTranslationKey(translationKey, namespace, keySeparator),
-          ...(plural === undefined
-            ? {}
-            : {
-                plural: { ...(context === undefined ? {} : { context }), ordinal: plural.ordinal }
-              }),
-          filePath,
-          location: nodeLocation(element, source),
-          sourceKind: "jsx-component"
-        };
-      })
+    (namespaceSeparator !== false && key.includes(namespaceSeparator)
+      ? [undefined]
+      : keyPrefixes
+    ).flatMap((keyPrefix) =>
+      primaryNamespaces.flatMap((namespace) =>
+        contexts.map((context) => {
+          const [explicitNamespace, rawKey] = splitNamespaceFromKey(key, namespaceSeparator);
+          const parsedKey = explicitNamespace
+            ? parseTranslationKey(rawKey, keySeparator)
+            : prependTranslationKey(keyPrefix, rawKey, keySeparator);
+          const translationKey = plural ? parsedKey : applyContext(parsedKey, context);
+          return {
+            kind: "resolved",
+            keyPath: translationKey,
+            message: messageFromTranslationKey(
+              translationKey,
+              explicitNamespace ?? namespace,
+              keySeparator,
+              explicitNamespace ? undefined : namespaceFallbacks
+            ),
+            ...(plural === undefined
+              ? {}
+              : {
+                  plural: {
+                    ...(context === undefined ? {} : { context }),
+                    ordinal: plural.ordinal
+                  }
+                }),
+            filePath,
+            location: nodeLocation(element, source),
+            sourceKind: "jsx-component"
+          };
+        })
+      )
     )
   );
 }
@@ -437,21 +486,22 @@ function resolveKey(
   rawKey: string,
   binding: TBinding,
   options: I18nextCheckOptions,
-  namespaceOverride: string[] | undefined
-): Array<{ namespace: string; key: TranslationKey }> | undefined {
+  namespaceOverride: { namespaces: string[]; namespaceFallbacks?: string[] } | undefined
+): Array<{ namespace: string; namespaceFallbacks?: string[]; key: TranslationKey }> | undefined {
   const namespaceSeparator =
     options.namespaceSeparator === false ? false : (options.namespaceSeparator ?? ":");
+  const [explicitNamespace, key] = splitNamespaceFromKey(rawKey, namespaceSeparator);
   const keySeparator = normalizeKeySeparator(options.keySeparator);
-  if (namespaceSeparator !== false && rawKey.includes(namespaceSeparator)) {
-    const [namespace, ...rest] = rawKey.split(namespaceSeparator);
+  if (explicitNamespace) {
     return [
       {
-        namespace: namespace!,
-        key: parseTranslationKey(rest.join(namespaceSeparator), keySeparator)
+        namespace: explicitNamespace,
+        key: parseTranslationKey(key, keySeparator)
       }
     ];
   }
-  const namespaces = namespaceOverride ?? binding.namespace;
+  const namespaces = namespaceOverride?.namespaces ?? binding.namespace;
+  const namespaceFallbacks = namespaceOverride?.namespaceFallbacks ?? binding.namespaceFallbacks;
   if (
     namespaces === undefined ||
     binding.unresolvedKeyPrefix ||
@@ -463,15 +513,27 @@ function resolveKey(
   return namespaces.flatMap((namespace) =>
     prefixes.map((keyPrefix) => ({
       namespace,
+      ...(namespaceFallbacks?.length ? { namespaceFallbacks } : {}),
       key: prependTranslationKey(keyPrefix, rawKey, keySeparator)
     }))
   );
 }
 
+function splitNamespaceFromKey(
+  rawKey: string,
+  namespaceSeparator: string | false
+): [string | undefined, string] {
+  if (namespaceSeparator === false || !rawKey.includes(namespaceSeparator)) {
+    return [undefined, rawKey];
+  }
+  const [namespace, ...rest] = rawKey.split(namespaceSeparator);
+  return [namespace!, rest.join(namespaceSeparator)];
+}
+
 function namespaceOverrideFromOptions(
   node: AnyNode | undefined,
   staticStrings: StaticStringContext
-): string[] | false | undefined {
+): { namespaces: string[]; namespaceFallbacks?: string[] } | false | undefined {
   if (!node || node.type !== "ObjectExpression") {
     return undefined;
   }
@@ -481,7 +543,12 @@ function namespaceOverrideFromOptions(
   if (!nsProperty) {
     return undefined;
   }
-  return resolveStaticStrings(nsProperty.value as AnyNode, staticStrings) ?? false;
+  const namespaceNode = nsProperty.value as AnyNode;
+  const namespaces = resolveStaticStringArray(namespaceNode, staticStrings);
+  if (namespaces === undefined) return false;
+  return namespaceNode.type === "ArrayExpression"
+    ? { namespaces: namespaces.slice(0, 1), namespaceFallbacks: namespaces.slice(1) }
+    : { namespaces };
 }
 
 type KeyVariant = {
@@ -559,11 +626,13 @@ function applyContext(key: TranslationKey, context: string | undefined): Transla
 function messageFromTranslationKey(
   key: TranslationKey,
   namespace: string,
-  separator: ReturnType<typeof normalizeKeySeparator>
+  separator: ReturnType<typeof normalizeKeySeparator>,
+  namespaceFallbacks?: string[]
 ) {
   return {
     id: displayTranslationKey(key, separator),
-    namespace
+    namespace,
+    ...(namespaceFallbacks && namespaceFallbacks.length > 0 ? { namespaceFallbacks } : {})
   };
 }
 
@@ -609,18 +678,43 @@ function jsxObjectAttributeNode(element: AnyNode, name: string): AnyNode | undef
   return expression?.type === "ObjectExpression" ? expression : undefined;
 }
 
+function jsxExpressionAttributeValue(attribute: AnyNode | undefined): AnyNode | undefined {
+  const value = attribute?.value as AnyNode | undefined;
+  return value?.type === "JSXExpressionContainer" ? (value.expression as AnyNode) : undefined;
+}
+
 function resolveJsxAttributeValues(
   attribute: AnyNode,
-  staticStrings: StaticStringContext
+  staticStrings: StaticStringContext,
+  allowArray = false
 ): string[] | undefined {
   const value = attribute.value as AnyNode | undefined;
   if (!value) {
     return undefined;
   }
 
-  if (value.type === "JSXExpressionContainer") {
-    return resolveStaticStrings(value.expression as AnyNode | undefined, staticStrings);
+  const expression =
+    value.type === "JSXExpressionContainer" ? (value.expression as AnyNode | undefined) : value;
+  if (allowArray && expression) {
+    return resolveStaticStringArray(expression, staticStrings);
   }
 
-  return resolveStaticStrings(value, staticStrings);
+  return resolveStaticStrings(expression, staticStrings);
+}
+
+function resolveStaticStringArray(
+  node: AnyNode,
+  staticStrings: StaticStringContext
+): string[] | undefined {
+  if (node.type !== "ArrayExpression") {
+    return resolveStaticStrings(node, staticStrings);
+  }
+
+  const values: string[] = [];
+  for (const element of arrayOf<AnyNode>(node.elements)) {
+    const resolved = resolveStaticStrings(element, staticStrings);
+    if (resolved === undefined) return undefined;
+    values.push(...resolved);
+  }
+  return values;
 }

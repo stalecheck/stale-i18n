@@ -50,12 +50,21 @@ export function compareUsages(
     }
 
     const namespace = usage.message.namespace ?? options.defaultNamespace ?? "translation";
+    const namespaces = [namespace, ...(usage.message.namespaceFallbacks ?? [])];
     if (usage.plural) {
       const family = pluralFamily(usage.keyPath, usage.plural);
-      const familyId = catalogId(namespace, family);
-      const matchingEntries = catalogs.entries.filter(
-        (entry) => entry.namespace === namespace && isPluralFamilyMember(entry.keyPath, family)
+      const matchingNamespace = namespaces.find((candidate) =>
+        catalogs.entries.some(
+          (entry) => entry.namespace === candidate && isPluralFamilyMember(entry.keyPath, family)
+        )
       );
+      const matchingEntries =
+        matchingNamespace === undefined
+          ? []
+          : catalogs.entries.filter(
+              (entry) =>
+                entry.namespace === matchingNamespace && isPluralFamilyMember(entry.keyPath, family)
+            );
 
       for (const entry of matchingEntries) {
         const id = catalogId(entry.namespace, entry.keyPath);
@@ -75,10 +84,10 @@ export function compareUsages(
             key: usage.message.id
           })
         );
-      } else if (!checkedPluralLocales.has(familyId)) {
-        checkedPluralLocales.add(familyId);
+      } else if (!checkedPluralLocales.has(catalogId(matchingNamespace!, family))) {
+        checkedPluralLocales.add(catalogId(matchingNamespace!, family));
         const presentLocales = new Set(matchingEntries.map((entry) => entry.locale));
-        const allLocales = catalogs.localesByNamespace.get(namespace) ?? new Set<string>();
+        const allLocales = catalogs.localesByNamespace.get(matchingNamespace!) ?? new Set<string>();
         for (const locale of allLocales) {
           if (!presentLocales.has(locale)) {
             const first = matchingEntries[0]!;
@@ -101,9 +110,12 @@ export function compareUsages(
       continue;
     }
 
-    const id = catalogId(namespace, usage.keyPath);
-    usedIds.add(id);
-    if (!catalogKeys.has(id)) {
+    const matchingNamespace = namespaces.find((candidate) =>
+      catalogKeys.has(catalogId(candidate, usage.keyPath))
+    );
+    if (matchingNamespace !== undefined) {
+      usedIds.add(catalogId(matchingNamespace, usage.keyPath));
+    } else {
       diagnostics.push(
         createDiagnostic({
           code: "missing-translation-key",

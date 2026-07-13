@@ -19,6 +19,7 @@ export type I18nextCatalogs = I18nextCatalogInput | I18nextCatalogInput[];
 
 export type TBinding = {
   namespace?: string[];
+  namespaceFallbacks?: string[];
   keyPrefix?: string[];
   unresolvedNamespace?: boolean;
   unresolvedKeyPrefix?: boolean;
@@ -44,6 +45,9 @@ export type I18nextSourceUsage =
   | (Extract<SourceUsage, { kind: "resolved" }> & {
       keyPath: TranslationKey;
       plural?: PluralUsage;
+      message: Extract<SourceUsage, { kind: "resolved" }>["message"] & {
+        namespaceFallbacks?: string[];
+      };
     });
 
 export type CatalogEntry = {

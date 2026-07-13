@@ -1,0 +1,21 @@
+{
+  "result": {
+    "status": "FAIL",
+    "filesChecked": 1,
+    "catalogsChecked": 2,
+    "diagnostics": [
+      {
+        "code": "unused-translation-key",
+        "severity": "error",
+        "key": "duplicate",
+        "locale": "en"
+      }
+    ],
+    "absentDiagnostics": [
+      {
+        "code": "missing-translation-key",
+        "key": "duplicate"
+      }
+    ]
+  }
+}

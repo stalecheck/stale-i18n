@@ -1,0 +1,5 @@
+{
+  "title": "Profile",
+  "fallback": "Profile fallback value",
+  "qualified": "Qualified profile value"
+}
