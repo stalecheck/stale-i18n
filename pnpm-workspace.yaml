@@ -6,7 +6,7 @@ packages:
   - packages/cli
 
 catalog:
-  '@typescript-eslint/scope-manager': ^8.62.0
+  '@typescript-eslint/scope-manager': ^8.63.0
   oxc-parser: ^0.139.0
   oxc-resolver: ^11.23.0
 
